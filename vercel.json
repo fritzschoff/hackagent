@@ -1,0 +1,29 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "crons": [
+    { "path": "/api/cron/agent-tick",       "schedule": "* * * * *" },
+    { "path": "/api/cron/client-tick?id=1", "schedule": "*/2 * * * *" },
+    { "path": "/api/cron/client-tick?id=2", "schedule": "*/3 * * * *" },
+    { "path": "/api/cron/client-tick?id=3", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/validator-tick",   "schedule": "*/10 * * * *" },
+    { "path": "/api/cron/storage-sync",     "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/reputation-cache", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/ens-heartbeat",    "schedule": "0 * * * *" }
+  ],
+  "functions": {
+    "app/api/a2a/jobs/route.ts":            { "maxDuration": 300 },
+    "app/api/cron/agent-tick/route.ts":     { "maxDuration": 60 },
+    "app/api/cron/client-tick/route.ts":    { "maxDuration": 60 },
+    "app/api/cron/validator-tick/route.ts": { "maxDuration": 300 },
+    "app/api/cron/storage-sync/route.ts":   { "maxDuration": 120 },
+    "app/api/cron/reputation-cache/route.ts": { "maxDuration": 60 },
+    "app/api/cron/ens-heartbeat/route.ts":  { "maxDuration": 30 }
+  },
+  "rewrites": [
+    {
+      "source": "/.well-known/agent-card.json",
+      "destination": "/api/agent-card"
+    }
+  ]
+}

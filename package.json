@@ -1,0 +1,46 @@
+{
+  "name": "hack-agent",
+  "version": "0.0.1",
+  "private": true,
+  "description": "tradewise.agentlab.eth — an autonomous on-chain agent that earns x402 USDC by quoting Uniswap swaps",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "gen-wallets": "tsx scripts/gen-wallets.ts",
+    "forge:build": "cd contracts && forge build",
+    "forge:test": "cd contracts && forge test"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.37.0",
+    "@vercel/edge-config": "^1.4.3",
+    "@vercel/functions": "^3.4.4",
+    "@x402/core": "^2.10.0",
+    "@x402/evm": "^2.10.0",
+    "@x402/fetch": "^2.10.0",
+    "@x402/next": "^2.10.0",
+    "@x402/paywall": "^2.10.0",
+    "next": "^16.2.4",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "viem": "^2.48.4",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.4",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^16.2.4",
+    "tailwindcss": "^4.2.4",
+    "tsx": "^4.21.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

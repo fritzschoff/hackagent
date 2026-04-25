@@ -1,0 +1,7 @@
+contracts
+docs
+scripts
+*.md
+!app/**/*.md
+!lib/**/*.md
+.cursor
