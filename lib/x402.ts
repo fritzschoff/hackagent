@@ -3,7 +3,7 @@ import { HTTPFacilitatorClient } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 
 const FACILITATOR_URL =
-  process.env.X402_FACILITATOR_URL ?? "https://facilitator.x402.org";
+  process.env.X402_FACILITATOR_URL ?? "https://facilitator.x402.rs";
 
 export const X402_NETWORK = "eip155:84532" as const;
 export const BASE_SEPOLIA_USDC =
