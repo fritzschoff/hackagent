@@ -51,19 +51,18 @@ From now on, `git push` to `main` triggers a **production** deploy and any other
 branch produces a **preview** deploy. Cron jobs **only fire on production**, so
 preview deploys are safe to spam.
 
-## 3. Marketplace: Upstash Redis
+## 3. Marketplace: Redis (any provider with a `REDIS_URL`)
 
-Vercel Dashboard → your project → **Storage** → **Create database** →
-**Upstash for Redis**.
+Vercel Dashboard → your project → **Storage** → **Create database**, then
+pick whichever Redis integration you prefer (Upstash, Redis Cloud, etc.).
 
-- Region: pick the same region you chose at the project level (default `iad1`).
-- Plan: **Free** is plenty for the demo (10k commands/day).
-- Click **Create**.
+- Region: same as project (default `iad1`).
+- Plan: **Free** tier is plenty for the demo.
 
-Vercel auto-injects these env vars into Production + Preview + Development:
-
-- `UPSTASH_REDIS_REST_URL`
-- `UPSTASH_REDIS_REST_TOKEN`
+The integration must auto-inject **`REDIS_URL`** (a `redis://…` connection
+string) into Production + Preview + Development. The codebase uses
+`ioredis` against `process.env.REDIS_URL`, so any provider that exposes
+that env var works out of the box.
 
 Verify under **Project → Settings → Environment Variables**.
 
@@ -127,15 +126,14 @@ until Checkpoint 2.
 vercel env pull .env.local
 ```
 
-Now your `pnpm dev` will use the same Upstash + Edge Config as production.
+Now your `pnpm dev` will use the same Redis + Edge Config as production.
 
 ## ✅ Done if
 
 1. `https://<your-project>.vercel.app` returns the dashboard with no errors.
 2. `https://<your-project>.vercel.app/.well-known/agent-card.json` returns JSON.
-3. `vercel env ls production` shows: `UPSTASH_REDIS_REST_URL`,
-   `UPSTASH_REDIS_REST_TOKEN`, `EDGE_CONFIG`, `CRON_SECRET`,
-   `NEXT_PUBLIC_APP_URL`.
+3. `vercel env ls production` shows: `REDIS_URL`, `EDGE_CONFIG`,
+   `CRON_SECRET`, `NEXT_PUBLIC_APP_URL`.
 
 When you confirm step 1 + 2, paste the production URL back and we move to
 Checkpoint 2.

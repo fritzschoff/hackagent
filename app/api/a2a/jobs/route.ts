@@ -3,7 +3,7 @@ import { withX402 } from "@x402/next";
 import { waitUntil } from "@vercel/functions";
 import { getResourceServer, QUOTE_PRICE_USD, X402_NETWORK } from "@/lib/x402";
 import { quoteSwap } from "@/lib/uniswap";
-import { pushJob } from "@/lib/upstash";
+import { pushJob } from "@/lib/redis";
 import { tryLoadAccount } from "@/lib/wallets";
 import { SwapIntent, type Job } from "@/lib/types";
 

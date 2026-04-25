@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { getAllCronStatuses } from "@/lib/upstash";
+import { getAllCronStatuses } from "@/lib/redis";
 import type { CronStatus } from "@/lib/types";
 
 export function verifyCronAuth(req: Request): boolean {

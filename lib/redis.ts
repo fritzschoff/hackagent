@@ -1,14 +1,21 @@
-import { Redis } from "@upstash/redis";
+import IORedis, { type Redis } from "ioredis";
 import type { Job, CronStatus } from "@/lib/types";
 
 let cached: Redis | null = null;
 
 export function getRedis(): Redis | null {
   if (cached) return cached;
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
-  cached = new Redis({ url, token });
+  const url = process.env.REDIS_URL;
+  if (!url) return null;
+  cached = new IORedis(url, {
+    maxRetriesPerRequest: 2,
+    enableReadyCheck: false,
+    lazyConnect: false,
+    connectTimeout: 5000,
+  });
+  cached.on("error", (err) => {
+    console.error("[redis] connection error:", err.message);
+  });
   return cached;
 }
 
@@ -23,11 +30,11 @@ export async function pushJob(job: Job): Promise<void> {
 export async function getRecentJobs(limit = 50): Promise<Job[]> {
   const r = getRedis();
   if (!r) return [];
-  const raw = await r.lrange<string>("jobs:recent", 0, limit - 1);
+  const raw = await r.lrange("jobs:recent", 0, limit - 1);
   return raw
     .map((s) => {
       try {
-        return typeof s === "string" ? JSON.parse(s) : s;
+        return JSON.parse(s);
       } catch {
         return null;
       }
@@ -38,8 +45,8 @@ export async function getRecentJobs(limit = 50): Promise<Job[]> {
 export async function getEarningsCents(): Promise<number> {
   const r = getRedis();
   if (!r) return 0;
-  const v = await r.get<number | string>("agent:earnings_cents");
-  return typeof v === "number" ? v : Number(v ?? 0);
+  const v = await r.get("agent:earnings_cents");
+  return Number(v ?? 0);
 }
 
 export const CRON_ROUTES = [
@@ -57,7 +64,7 @@ export async function recordCronTick(
 ): Promise<void> {
   const r = getRedis();
   if (!r) return;
-  await r.hset(`cron:${route}`, { ts: Date.now(), status });
+  await r.hset(`cron:${route}`, { ts: String(Date.now()), status });
 }
 
 export async function getCronTick(
@@ -65,11 +72,10 @@ export async function getCronTick(
 ): Promise<{ ts: number; status: "ok" | "fail" } | null> {
   const r = getRedis();
   if (!r) return null;
-  const v = await r.hgetall<{ ts: string | number; status: "ok" | "fail" }>(
-    `cron:${route}`,
-  );
+  const v = await r.hgetall(`cron:${route}`);
   if (!v || !v.ts) return null;
-  return { ts: Number(v.ts), status: v.status };
+  const status = v.status === "fail" ? "fail" : "ok";
+  return { ts: Number(v.ts), status };
 }
 
 export async function getAllCronStatuses(): Promise<CronStatus[]> {

@@ -14,7 +14,6 @@
     "forge:test": "cd contracts && forge test"
   },
   "dependencies": {
-    "@upstash/redis": "^1.37.0",
     "@vercel/edge-config": "^1.4.3",
     "@vercel/functions": "^3.4.4",
     "@x402/core": "^2.10.0",
@@ -22,6 +21,7 @@
     "@x402/fetch": "^2.10.0",
     "@x402/next": "^2.10.0",
     "@x402/paywall": "^2.10.0",
+    "ioredis": "^5",
     "next": "^16.2.4",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",

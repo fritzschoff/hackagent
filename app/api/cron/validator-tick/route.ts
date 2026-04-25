@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCronAuth, unauthorized } from "@/lib/cron-auth";
-import { recordCronTick } from "@/lib/upstash";
+import { recordCronTick } from "@/lib/redis";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;

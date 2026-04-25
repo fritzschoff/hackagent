@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCronAuth, unauthorized } from "@/lib/cron-auth";
-import { recordCronTick } from "@/lib/upstash";
+import { recordCronTick } from "@/lib/redis";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -12,6 +12,6 @@ export async function GET(req: NextRequest) {
   await recordCronTick(ROUTE, "ok");
   return NextResponse.json({
     ok: true,
-    note: "storage-sync flushes Upstash Redis -> 0G Storage Log (P3)",
+    note: "storage-sync flushes Redis -> 0G Storage Log (P3)",
   });
 }

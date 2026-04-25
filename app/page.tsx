@@ -1,4 +1,4 @@
-import { getRecentJobs, getEarningsCents } from "@/lib/upstash";
+import { getRecentJobs, getEarningsCents } from "@/lib/redis";
 import { getCronStatuses } from "@/lib/cron-auth";
 
 export const revalidate = 30;

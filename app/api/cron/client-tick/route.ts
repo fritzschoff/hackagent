@@ -3,7 +3,7 @@ import { wrapFetchWithPaymentFromConfig } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { toClientEvmSigner } from "@x402/evm";
 import { verifyCronAuth, unauthorized } from "@/lib/cron-auth";
-import { recordCronTick } from "@/lib/upstash";
+import { recordCronTick } from "@/lib/redis";
 import { getClientWalletId, tryLoadAccount } from "@/lib/wallets";
 import { randomTestIntent } from "@/lib/uniswap";
 

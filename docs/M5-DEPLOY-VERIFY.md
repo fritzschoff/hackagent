@@ -14,7 +14,7 @@ Confirm Checkpoints 1 + 2 are green:
 vercel env ls production
 # expect: AGENT_PK, CLIENT1_PK, CLIENT2_PK, CLIENT3_PK, VALIDATOR_PK,
 #         CRON_SECRET, NEXT_PUBLIC_APP_URL,
-#         UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN, EDGE_CONFIG,
+#         REDIS_URL, EDGE_CONFIG,
 #         SEPOLIA_RPC_URL, BASE_SEPOLIA_RPC_URL,
 #         UNISWAP_API_KEY (optional)
 ```
