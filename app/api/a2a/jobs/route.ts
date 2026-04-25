@@ -12,7 +12,6 @@ export const maxDuration = 300;
 
 const agent = tryLoadAccount("agent");
 const agentAddress = agent?.address ?? null;
-const server = agentAddress ? await getResourceServer() : null;
 
 const handler = async (req: NextRequest): Promise<NextResponse> => {
   const raw = await req.json().catch(() => null);
@@ -46,32 +45,46 @@ const handler = async (req: NextRequest): Promise<NextResponse> => {
   return NextResponse.json({ ok: true, job });
 };
 
-export const POST =
-  agentAddress && server
-    ? withX402(
-        handler,
-        {
-          accepts: {
-            scheme: "exact",
-            price: QUOTE_PRICE_USD,
-            network: X402_NETWORK,
-            payTo: agentAddress,
-            maxTimeoutSeconds: 60,
-          },
-          description:
-            "tradewise.agentlab.eth — single Uniswap quote, signed and dated",
-          mimeType: "application/json",
-        },
-        server,
-      )
-    : async () =>
-        NextResponse.json(
-          {
-            error: "agent_not_configured",
-            hint: "AGENT_PK env var is missing. See .env.example.",
-          },
-          { status: 500 },
-        );
+let cachedPaidHandler: ((req: NextRequest) => Promise<NextResponse>) | null =
+  null;
+
+async function getPaidHandler(): Promise<
+  (req: NextRequest) => Promise<NextResponse>
+> {
+  if (cachedPaidHandler) return cachedPaidHandler;
+  const server = await getResourceServer();
+  cachedPaidHandler = withX402(
+    handler,
+    {
+      accepts: {
+        scheme: "exact",
+        price: QUOTE_PRICE_USD,
+        network: X402_NETWORK,
+        payTo: agentAddress!,
+        maxTimeoutSeconds: 60,
+      },
+      description:
+        "tradewise.agentlab.eth — single Uniswap quote, signed and dated",
+      mimeType: "application/json",
+    },
+    server,
+  );
+  return cachedPaidHandler;
+}
+
+export const POST = async (req: NextRequest): Promise<NextResponse> => {
+  if (!agentAddress) {
+    return NextResponse.json(
+      {
+        error: "agent_not_configured",
+        hint: "AGENT_PK env var is missing. See .env.example.",
+      },
+      { status: 500 },
+    );
+  }
+  const paid = await getPaidHandler();
+  return paid(req);
+};
 
 function extractTxHash(header: string | null): string | null {
   if (!header) return null;
