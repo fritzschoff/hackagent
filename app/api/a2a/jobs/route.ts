@@ -7,6 +7,7 @@ import { pushJob } from "@/lib/redis";
 import { tryLoadAccount } from "@/lib/wallets";
 import { SwapIntent, type Job } from "@/lib/types";
 import { appendJobLog } from "@/lib/zg-storage";
+import { callSwapWorkflow } from "@/lib/keeperhub";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -53,6 +54,19 @@ const handler = async (req: NextRequest): Promise<NextResponse> => {
       })
       .catch((err) => {
         console.error(`[zg-storage] job=${job.id} failed:`, err?.message ?? err);
+      }),
+  );
+  waitUntil(
+    callSwapWorkflow({ intent, quote })
+      .then((res) => {
+        if (res) {
+          console.log(
+            `[keeperhub] job=${job.id} runId=${res.workflowRunId} status=${res.status} txHash=${res.txHash ?? "(pending)"}`,
+          );
+        }
+      })
+      .catch((err) => {
+        console.error(`[keeperhub] job=${job.id} failed:`, err?.message ?? err);
       }),
   );
 
