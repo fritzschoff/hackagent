@@ -15,6 +15,7 @@
     "forge:test": "cd contracts && forge test"
   },
   "dependencies": {
+    "@0glabs/0g-serving-broker": "^0.7.5",
     "@0glabs/0g-ts-sdk": "^0.3.3",
     "@vercel/edge-config": "^1.4.3",
     "@vercel/functions": "^3.4.4",
