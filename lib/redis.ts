@@ -49,6 +49,37 @@ export async function getEarningsCents(): Promise<number> {
   return Number(v ?? 0);
 }
 
+export type KeeperhubRun = {
+  jobId: string;
+  workflowRunId: string;
+  txHash: string;
+  ts: number;
+};
+
+export async function pushKeeperhubRun(run: KeeperhubRun): Promise<void> {
+  const r = getRedis();
+  if (!r) return;
+  await r.lpush("keeperhub:runs", JSON.stringify(run));
+  await r.ltrim("keeperhub:runs", 0, 49);
+}
+
+export async function getRecentKeeperhubRuns(
+  limit = 10,
+): Promise<KeeperhubRun[]> {
+  const r = getRedis();
+  if (!r) return [];
+  const raw = await r.lrange("keeperhub:runs", 0, limit - 1);
+  return raw
+    .map((s) => {
+      try {
+        return JSON.parse(s) as KeeperhubRun;
+      } catch {
+        return null;
+      }
+    })
+    .filter((x): x is KeeperhubRun => x !== null);
+}
+
 export const CRON_ROUTES = [
   "/api/cron/agent-tick",
   "/api/cron/client-tick",

@@ -111,7 +111,7 @@ export async function callSwapWorkflow(args: {
       },
     );
 
-    const txHash = await pollForTxHash(apiKey, start.executionId, 8);
+    const txHash = await pollForTxHash(apiKey, start.executionId, 30);
     return {
       workflowRunId: start.executionId,
       txHash,
@@ -133,16 +133,26 @@ async function pollForTxHash(
 ): Promise<`0x${string}` | null> {
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise((r) => setTimeout(r, 2000));
-    const logs = await callTool<{
-      logs?: { nodeType: string; output?: { transactionHash?: string } }[];
-      execution?: { status?: string };
-    }>(apiKey, "get_execution_logs", { executionId });
-    const status = logs.execution?.status;
-    const tx = logs.logs?.find((l) =>
-      l.nodeType?.startsWith("web3/"),
-    )?.output?.transactionHash;
-    if (tx) return tx as `0x${string}`;
-    if (status === "failed" || status === "error") return null;
+    const status = await callTool<{
+      status?: string;
+      errorContext?: { error?: string };
+    }>(apiKey, "get_execution_status", { executionId });
+    if (status.status === "failed" || status.status === "error") {
+      console.error(
+        `[keeperhub] execution ${executionId} ${status.status}:`,
+        status.errorContext?.error ?? "(no error context)",
+      );
+      return null;
+    }
+    if (status.status === "success") {
+      const logs = await callTool<{
+        logs?: { nodeType: string; output?: { transactionHash?: string } }[];
+      }>(apiKey, "get_execution_logs", { executionId });
+      const tx = logs.logs?.find((l) =>
+        l.nodeType?.startsWith("web3/"),
+      )?.output?.transactionHash;
+      return (tx as `0x${string}` | undefined) ?? null;
+    }
   }
   return null;
 }
