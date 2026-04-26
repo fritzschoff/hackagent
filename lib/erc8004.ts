@@ -1,4 +1,31 @@
-import type { Address } from "viem";
+import {
+  keccak256,
+  parseAbi,
+  toBytes,
+  type Address,
+  type Hex,
+  type AbiEvent,
+} from "viem";
+import { sepoliaPublicClient, sepoliaWalletClient } from "@/lib/wallets";
+import type { WalletId } from "@/lib/wallets";
+import { getSepoliaAddresses } from "@/lib/edge-config";
+import IdentityRegistryAbi from "@/lib/abis/IdentityRegistry.json";
+import ReputationRegistryAbi from "@/lib/abis/ReputationRegistry.json";
+import ValidationRegistryAbi from "@/lib/abis/ValidationRegistry.json";
+
+const REP_ABI = ReputationRegistryAbi as readonly unknown[];
+const VAL_ABI = ValidationRegistryAbi as readonly unknown[];
+const ID_ABI = IdentityRegistryAbi as readonly unknown[];
+
+const FEEDBACK_POSTED = (REP_ABI as AbiEvent[]).find(
+  (e) => e.type === "event" && e.name === "FeedbackPosted",
+) as AbiEvent;
+
+const VALIDATION_RESPONSE_POSTED = (VAL_ABI as AbiEvent[]).find(
+  (e) => e.type === "event" && e.name === "ValidationResponsePosted",
+) as AbiEvent;
+
+const SEPOLIA_DEPLOY_BLOCK_DEFAULT = 6_000_000n;
 
 export type FeedbackEntry = {
   agentId: bigint;
@@ -7,41 +34,287 @@ export type FeedbackEntry = {
   decimals: number;
   tag: string;
   ts: number;
-  txHash: `0x${string}`;
+  txHash: Hex;
+  blockNumber: bigint;
+  detailUri: string;
 };
 
 export type ValidationEntry = {
-  agentId: bigint;
+  jobId: Hex;
   validator: Address;
-  jobId: string;
   score: number;
+  decimals: number;
   ts: number;
-  txHash: `0x${string}`;
+  txHash: Hex;
+  blockNumber: bigint;
+  detailUri: string;
 };
 
-export async function readRecentFeedback(_limit = 50): Promise<FeedbackEntry[]> {
-  return [];
+export type AgentRecord = {
+  agentId: bigint;
+  agentDomain: string;
+  agentAddress: Address;
+  agentWallet: Address;
+  registeredAt: bigint;
+  active: boolean;
+};
+
+const tagAbi = parseAbi([
+  "function bytes32ToString(bytes32) pure returns (string)",
+]);
+void tagAbi;
+
+function decodeTag(tag: Hex): string {
+  const hex = tag.slice(2);
+  let out = "";
+  for (let i = 0; i < hex.length; i += 2) {
+    const c = parseInt(hex.slice(i, i + 2), 16);
+    if (c === 0) break;
+    out += String.fromCharCode(c);
+  }
+  return out;
+}
+
+export async function readAgent(agentId: bigint): Promise<AgentRecord | null> {
+  const { identityRegistry } = await getSepoliaAddresses();
+  if (identityRegistry === "0x0000000000000000000000000000000000000000") {
+    return null;
+  }
+  const client = sepoliaPublicClient();
+  try {
+    const a = (await client.readContract({
+      address: identityRegistry,
+      abi: ID_ABI,
+      functionName: "getAgent",
+      args: [agentId],
+    })) as AgentRecord;
+    if (a.agentId !== agentId) return null;
+    return a;
+  } catch {
+    return null;
+  }
+}
+
+export async function readRecentFeedback(
+  limit = 50,
+): Promise<FeedbackEntry[]> {
+  const { reputationRegistry } = await getSepoliaAddresses();
+  if (reputationRegistry === "0x0000000000000000000000000000000000000000") {
+    return [];
+  }
+  const client = sepoliaPublicClient();
+  const tip = await client.getBlockNumber();
+  const fromBlock =
+    tip > SEPOLIA_DEPLOY_BLOCK_DEFAULT
+      ? tip - 100_000n
+      : SEPOLIA_DEPLOY_BLOCK_DEFAULT;
+
+  try {
+    const logs = await client.getLogs({
+      address: reputationRegistry,
+      event: FEEDBACK_POSTED,
+      fromBlock,
+      toBlock: tip,
+    });
+    const recent = logs.slice(-limit).reverse();
+    return recent.map((log) => {
+      const a = log.args as unknown as {
+        agentId: bigint;
+        client: Address;
+        score: number;
+        decimals: number;
+        tag: Hex;
+        timestamp: bigint;
+        detailUri: string;
+      };
+      return {
+        agentId: a.agentId,
+        client: a.client,
+        score: Number(a.score),
+        decimals: Number(a.decimals),
+        tag: decodeTag(a.tag),
+        ts: Number(a.timestamp) * 1000,
+        txHash: log.transactionHash,
+        blockNumber: log.blockNumber,
+        detailUri: a.detailUri,
+      };
+    });
+  } catch {
+    return [];
+  }
 }
 
 export async function readRecentValidations(
-  _limit = 50,
+  limit = 50,
 ): Promise<ValidationEntry[]> {
-  return [];
+  const { validationRegistry } = await getSepoliaAddresses();
+  if (validationRegistry === "0x0000000000000000000000000000000000000000") {
+    return [];
+  }
+  const client = sepoliaPublicClient();
+  const tip = await client.getBlockNumber();
+  const fromBlock =
+    tip > SEPOLIA_DEPLOY_BLOCK_DEFAULT
+      ? tip - 100_000n
+      : SEPOLIA_DEPLOY_BLOCK_DEFAULT;
+
+  try {
+    const logs = await client.getLogs({
+      address: validationRegistry,
+      event: VALIDATION_RESPONSE_POSTED,
+      fromBlock,
+      toBlock: tip,
+    });
+    const recent = logs.slice(-limit).reverse();
+    return recent.map((log) => {
+      const a = log.args as unknown as {
+        jobId: Hex;
+        validator: Address;
+        score: number;
+        decimals: number;
+        detailUri: string;
+        timestamp: bigint;
+      };
+      return {
+        jobId: a.jobId,
+        validator: a.validator,
+        score: Number(a.score),
+        decimals: Number(a.decimals),
+        ts: Number(a.timestamp) * 1000,
+        txHash: log.transactionHash,
+        blockNumber: log.blockNumber,
+        detailUri: a.detailUri,
+      };
+    });
+  } catch {
+    return [];
+  }
 }
 
-export async function postFeedback(_args: {
+export async function postFeedback(args: {
   agentId: bigint;
   score: number;
+  decimals: number;
   tag: string;
+  detailUri?: string;
   clientWallet: "client1" | "client2" | "client3";
-}): Promise<{ txHash: `0x${string}` } | null> {
-  return null;
+}): Promise<{ txHash: Hex } | null> {
+  const { reputationRegistry } = await getSepoliaAddresses();
+  if (reputationRegistry === "0x0000000000000000000000000000000000000000") {
+    return null;
+  }
+  const wallet = sepoliaWalletClient(args.clientWallet);
+  const tagBytes = tagToBytes32(args.tag);
+  const txHash = await wallet.writeContract({
+    address: reputationRegistry,
+    abi: REP_ABI,
+    functionName: "postFeedback",
+    args: [
+      args.agentId,
+      args.score,
+      args.decimals,
+      tagBytes,
+      args.detailUri ?? "",
+    ],
+  });
+  return { txHash };
 }
 
-export async function postValidation(_args: {
+export function jobIdToBytes32(jobIdStr: string): Hex {
+  return keccak256(toBytes(jobIdStr));
+}
+
+export async function readValidationRequest(jobId: Hex): Promise<{
   agentId: bigint;
-  jobId: string;
+  createdAt: bigint;
+  resolved: boolean;
+} | null> {
+  const { validationRegistry } = await getSepoliaAddresses();
+  if (validationRegistry === "0x0000000000000000000000000000000000000000") {
+    return null;
+  }
+  const client = sepoliaPublicClient();
+  try {
+    const v = (await client.readContract({
+      address: validationRegistry,
+      abi: VAL_ABI,
+      functionName: "requests",
+      args: [jobId],
+    })) as readonly [bigint, Hex, Address, string, bigint, bigint, boolean];
+    return { agentId: v[0], createdAt: v[4], resolved: v[6] };
+  } catch {
+    return null;
+  }
+}
+
+export async function readValidationResponseCount(jobId: Hex): Promise<bigint> {
+  const { validationRegistry } = await getSepoliaAddresses();
+  if (validationRegistry === "0x0000000000000000000000000000000000000000") {
+    return 0n;
+  }
+  const client = sepoliaPublicClient();
+  try {
+    return (await client.readContract({
+      address: validationRegistry,
+      abi: VAL_ABI,
+      functionName: "responseCount",
+      args: [jobId],
+    })) as bigint;
+  } catch {
+    return 0n;
+  }
+}
+
+export async function requestValidation(args: {
+  agentId: bigint;
+  jobId: Hex;
+  detailUri?: string;
+  deadlineUnixSec: number;
+  walletId: WalletId;
+}): Promise<{ txHash: Hex } | null> {
+  const { validationRegistry } = await getSepoliaAddresses();
+  if (validationRegistry === "0x0000000000000000000000000000000000000000") {
+    return null;
+  }
+  const wallet = sepoliaWalletClient(args.walletId);
+  const txHash = await wallet.writeContract({
+    address: validationRegistry,
+    abi: VAL_ABI,
+    functionName: "requestValidation",
+    args: [
+      args.agentId,
+      args.jobId,
+      args.detailUri ?? "",
+      BigInt(args.deadlineUnixSec),
+    ],
+  });
+  return { txHash };
+}
+
+export async function postValidationResponse(args: {
+  jobId: Hex;
   score: number;
-}): Promise<{ txHash: `0x${string}` } | null> {
-  return null;
+  decimals: number;
+  detailUri?: string;
+  walletId: WalletId;
+}): Promise<{ txHash: Hex } | null> {
+  const { validationRegistry } = await getSepoliaAddresses();
+  if (validationRegistry === "0x0000000000000000000000000000000000000000") {
+    return null;
+  }
+  const wallet = sepoliaWalletClient(args.walletId);
+  const txHash = await wallet.writeContract({
+    address: validationRegistry,
+    abi: VAL_ABI,
+    functionName: "postResponse",
+    args: [args.jobId, args.score, args.decimals, args.detailUri ?? ""],
+  });
+  return { txHash };
+}
+
+function tagToBytes32(s: string): Hex {
+  const bytes = new TextEncoder().encode(s).slice(0, 32);
+  let hex = "0x";
+  for (const b of bytes) hex += b.toString(16).padStart(2, "0");
+  return (hex.padEnd(66, "0") as Hex);
 }

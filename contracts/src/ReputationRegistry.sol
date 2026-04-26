@@ -1,16 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-interface IIdentityRegistry {
-    function getAgent(uint256 id) external view returns (
-        uint256 agentId,
-        string memory agentDomain,
-        address agentAddress,
-        address agentWallet,
-        uint256 registeredAt,
-        bool active
-    );
-}
+import {IdentityRegistry} from "./IdentityRegistry.sol";
 
 contract ReputationRegistry {
     struct Feedback {
@@ -22,7 +13,7 @@ contract ReputationRegistry {
         uint64 timestamp;
     }
 
-    IIdentityRegistry public immutable IDENTITY;
+    IdentityRegistry public immutable IDENTITY;
 
     mapping(uint256 => Feedback[]) public feedbackByAgent;
 
@@ -37,7 +28,7 @@ contract ReputationRegistry {
     );
 
     constructor(address identityRegistry_) {
-        IDENTITY = IIdentityRegistry(identityRegistry_);
+        IDENTITY = IdentityRegistry(identityRegistry_);
     }
 
     function postFeedback(
@@ -48,9 +39,9 @@ contract ReputationRegistry {
         string calldata detailUri
     ) external {
         require(score <= 100, "score>100");
-        (uint256 id,,,,, bool active) = IDENTITY.getAgent(agentId);
-        require(id == agentId, "unknown agent");
-        require(active, "agent inactive");
+        IdentityRegistry.Agent memory a = IDENTITY.getAgent(agentId);
+        require(a.agentId == agentId, "unknown agent");
+        require(a.active, "agent inactive");
         Feedback memory f = Feedback({
             agentId: agentId,
             client: msg.sender,

@@ -20,7 +20,7 @@ const STUB: AddressMap = {
 export async function getSepoliaAddresses(): Promise<AddressMap> {
   if (!process.env.EDGE_CONFIG) return STUB;
   try {
-    const v = await get<AddressMap>("addresses.sepolia");
+    const v = await get<AddressMap>("addresses_sepolia");
     return v ?? STUB;
   } catch {
     return STUB;
@@ -33,7 +33,7 @@ export async function getKeeperHubWorkflowId(): Promise<string | null> {
   }
   if (!process.env.EDGE_CONFIG) return null;
   try {
-    const v = await get<string>("keeperhub.workflow.swap");
+    const v = await get<string>("keeperhub_workflow_swap");
     return v ?? null;
   } catch {
     return null;
