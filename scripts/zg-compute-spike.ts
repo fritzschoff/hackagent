@@ -40,8 +40,8 @@ async function main() {
   console.log("using provider:", providerAddr, "model:", chat[6]);
 
   try {
-    console.log("depositing 0.05 OG to ledger...");
-    await broker.ledger.depositFund(0.05);
+    console.log("depositing 3 OG to ledger (one-time minimum)...");
+    await broker.ledger.depositFund(3);
     console.log("deposit ok");
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
