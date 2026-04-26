@@ -10,10 +10,12 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "gen-wallets": "tsx scripts/gen-wallets.ts",
+    "distribute": "tsx scripts/distribute.ts",
     "forge:build": "cd contracts && forge build",
     "forge:test": "cd contracts && forge test"
   },
   "dependencies": {
+    "@0glabs/0g-ts-sdk": "^0.3.3",
     "@vercel/edge-config": "^1.4.3",
     "@vercel/functions": "^3.4.4",
     "@x402/core": "^2.10.0",
@@ -21,6 +23,7 @@
     "@x402/fetch": "^2.10.0",
     "@x402/next": "^2.10.0",
     "@x402/paywall": "^2.10.0",
+    "ethers": "^6.16.0",
     "ioredis": "^5",
     "next": "^16.2.4",
     "react": "^19.2.5",
