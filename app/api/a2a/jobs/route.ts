@@ -3,7 +3,7 @@ import { withX402 } from "@x402/next";
 import { waitUntil } from "@vercel/functions";
 import { getResourceServer, QUOTE_PRICE_USD, X402_NETWORK } from "@/lib/x402";
 import { quoteSwap } from "@/lib/uniswap";
-import { pushJob } from "@/lib/redis";
+import { pushJob, pushKeeperhubRun } from "@/lib/redis";
 import { tryLoadAccount } from "@/lib/wallets";
 import { SwapIntent, type Job } from "@/lib/types";
 import { appendJobLog } from "@/lib/zg-storage";
@@ -58,11 +58,18 @@ const handler = async (req: NextRequest): Promise<NextResponse> => {
   );
   waitUntil(
     callSwapWorkflow({ intent, quote })
-      .then((res) => {
-        if (res) {
-          console.log(
-            `[keeperhub] job=${job.id} runId=${res.workflowRunId} status=${res.status} txHash=${res.txHash ?? "(pending)"}`,
-          );
+      .then(async (res) => {
+        if (!res) return;
+        console.log(
+          `[keeperhub] job=${job.id} runId=${res.workflowRunId} status=${res.status} txHash=${res.txHash ?? "(pending)"}`,
+        );
+        if (res.txHash) {
+          await pushKeeperhubRun({
+            jobId: job.id,
+            workflowRunId: res.workflowRunId,
+            txHash: res.txHash,
+            ts: Date.now(),
+          });
         }
       })
       .catch((err) => {

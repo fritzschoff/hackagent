@@ -1,4 +1,8 @@
-import { getRecentJobs, getEarningsCents } from "@/lib/redis";
+import {
+  getRecentJobs,
+  getEarningsCents,
+  getRecentKeeperhubRuns,
+} from "@/lib/redis";
 import { getCronStatuses } from "@/lib/cron-auth";
 import { readRecentFeedback, readRecentValidations } from "@/lib/erc8004";
 import { getSepoliaAddresses } from "@/lib/edge-config";
@@ -12,15 +16,23 @@ const BASE_SEPOLIA_BASESCAN = "https://sepolia.basescan.org";
 const ENS_APP = `https://sepolia.app.ens.domains/${AGENT_ENS}`;
 
 export default async function DashboardPage() {
-  const [jobs, earningsCents, crons, feedback, validations, addresses] =
-    await Promise.all([
-      getRecentJobs(50),
-      getEarningsCents(),
-      getCronStatuses(),
-      readRecentFeedback(10),
-      readRecentValidations(10),
-      getSepoliaAddresses(),
-    ]);
+  const [
+    jobs,
+    earningsCents,
+    crons,
+    feedback,
+    validations,
+    addresses,
+    khRuns,
+  ] = await Promise.all([
+    getRecentJobs(50),
+    getEarningsCents(),
+    getCronStatuses(),
+    readRecentFeedback(10),
+    readRecentValidations(10),
+    getSepoliaAddresses(),
+    getRecentKeeperhubRuns(10),
+  ]);
 
   const distinctClients = new Set(feedback.map((f) => f.client.toLowerCase()))
     .size;
@@ -70,7 +82,7 @@ export default async function DashboardPage() {
         </p>
       </header>
 
-      <section className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <section className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <Stat
           label="earnings"
           value={`${(earningsCents / 100).toFixed(2)} USDC`}
@@ -79,6 +91,7 @@ export default async function DashboardPage() {
         <Stat label="quotes" value={String(jobs.length)} />
         <Stat label="feedback" value={String(feedback.length)} />
         <Stat label="clients" value={String(distinctClients)} />
+        <Stat label="kh runs" value={String(khRuns.length)} />
         <Stat label="status" value={live ? "live" : "bootstrapping"} />
       </section>
 
@@ -208,6 +221,40 @@ export default async function DashboardPage() {
                     className="text-(--color-accent) underline"
                   >
                     score {v.score} ↗
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold uppercase tracking-widest text-(--color-muted)">
+          keeperhub workflow runs (base sepolia)
+        </h2>
+        <div className="border border-(--color-border) rounded-lg overflow-hidden">
+          {khRuns.length === 0 ? (
+            <p className="p-4 text-sm text-(--color-muted)">
+              no workflow runs yet
+            </p>
+          ) : (
+            <ul className="divide-y divide-(--color-border)">
+              {khRuns.map((r) => (
+                <li
+                  key={r.workflowRunId}
+                  className="p-3 flex justify-between text-sm font-mono text-xs"
+                >
+                  <span>
+                    job {r.jobId.slice(0, 8)}… run {r.workflowRunId.slice(0, 8)}…
+                  </span>
+                  <a
+                    href={`${BASE_SEPOLIA_BASESCAN}/tx/${r.txHash}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-(--color-accent) underline"
+                  >
+                    {r.txHash.slice(0, 10)}… ↗
                   </a>
                 </li>
               ))}
