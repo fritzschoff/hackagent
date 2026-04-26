@@ -117,14 +117,25 @@ export async function reasonAboutQuote(args: {
     const json = (await res.json()) as {
       id?: string;
       choices?: { message?: { content?: string } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
     const text = json.choices?.[0]?.message?.content ?? "";
+    const teeKey =
+      res.headers.get("ZG-Res-Key") ?? res.headers.get("zg-res-key");
 
     let teeAttested = false;
-    if (json.id) {
+    if (teeKey) {
+      const usageJson = JSON.stringify({
+        input_tokens: json.usage?.prompt_tokens ?? 0,
+        output_tokens: json.usage?.completion_tokens ?? 0,
+      });
       try {
         teeAttested = Boolean(
-          await zg.broker.inference.processResponse(zg.provider, text, json.id),
+          await zg.broker.inference.processResponse(
+            zg.provider,
+            teeKey,
+            usageJson,
+          ),
         );
       } catch (err) {
         console.error(
