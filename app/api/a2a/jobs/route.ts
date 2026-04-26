@@ -8,6 +8,7 @@ import { tryLoadAccount } from "@/lib/wallets";
 import { SwapIntent, type Job } from "@/lib/types";
 import { appendJobLog } from "@/lib/zg-storage";
 import { callSwapWorkflow } from "@/lib/keeperhub";
+import { reasonAboutQuote } from "@/lib/zg-compute";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -43,6 +44,24 @@ const handler = async (req: NextRequest): Promise<NextResponse> => {
   };
 
   waitUntil(pushJob(job));
+  waitUntil(
+    reasonAboutQuote({
+      tokenIn: intent.tokenIn,
+      tokenOut: intent.tokenOut,
+      amountIn: intent.amountIn,
+      amountOut: quote.amountOut,
+    })
+      .then((res) => {
+        if (res) {
+          console.log(
+            `[zg-compute] job=${job.id} model=${res.model} teeAttested=${res.teeAttested} text=${JSON.stringify(res.text).slice(0, 200)}`,
+          );
+        }
+      })
+      .catch((err) => {
+        console.error(`[zg-compute] job=${job.id} failed:`, err?.message ?? err);
+      }),
+  );
   waitUntil(
     appendJobLog(job)
       .then((res) => {
