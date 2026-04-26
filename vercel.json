@@ -2,13 +2,13 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "crons": [
-    { "path": "/api/cron/agent-tick",       "schedule": "* * * * *" },
-    { "path": "/api/cron/client-tick?id=1", "schedule": "*/2 * * * *" },
-    { "path": "/api/cron/client-tick?id=2", "schedule": "*/3 * * * *" },
-    { "path": "/api/cron/client-tick?id=3", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/agent-tick",       "schedule": "0 * * * *" },
+    { "path": "/api/cron/client-tick?id=1", "schedule": "0 * * * *" },
+    { "path": "/api/cron/client-tick?id=2", "schedule": "0 * * * *" },
+    { "path": "/api/cron/client-tick?id=3", "schedule": "0 * * * *" },
     { "path": "/api/cron/validator-tick",   "schedule": "0 */12 * * *" },
-    { "path": "/api/cron/storage-sync",     "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/reputation-cache", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/storage-sync",     "schedule": "0 * * * *" },
+    { "path": "/api/cron/reputation-cache", "schedule": "0 * * * *" },
     { "path": "/api/cron/ens-heartbeat",    "schedule": "0 * * * *" }
   ],
   "functions": {
