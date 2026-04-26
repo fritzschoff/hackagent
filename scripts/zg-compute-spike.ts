@@ -113,12 +113,16 @@ async function main() {
       console.log("\n=== completion ===\n", completion);
       const teeKey = res.headers.get("ZG-Res-Key") ?? res.headers.get("zg-res-key");
       console.log("ZG-Res-Key:", teeKey);
-      if (json.id && teeKey) {
+      if (json.id) {
+        const usageJson = JSON.stringify({
+          input_tokens: (json as { usage?: { prompt_tokens?: number } }).usage?.prompt_tokens ?? 0,
+          output_tokens: (json as { usage?: { completion_tokens?: number } }).usage?.completion_tokens ?? 0,
+        });
         try {
           const verified = await broker.inference.processResponse(
             providerAddr,
-            completion,
             json.id,
+            usageJson,
           );
           console.log("processResponse ->", verified);
         } catch (err) {
