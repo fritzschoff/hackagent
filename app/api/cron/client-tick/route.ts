@@ -3,7 +3,7 @@ import { wrapFetchWithPaymentFromConfig } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { toClientEvmSigner } from "@x402/evm";
 import { verifyCronAuth, unauthorized } from "@/lib/cron-auth";
-import { recordCronTick } from "@/lib/redis";
+import { recordCronTick, recordSettledPayment } from "@/lib/redis";
 import { getClientWalletId, tryLoadAccount } from "@/lib/wallets";
 import { randomTestIntent } from "@/lib/uniswap";
 import { postFeedback } from "@/lib/erc8004";
@@ -58,6 +58,26 @@ export async function GET(req: NextRequest) {
       res.headers.get("PAYMENT-RESPONSE") ?? res.headers.get("X-PAYMENT-RESPONSE");
 
     await recordCronTick(ROUTE, ok ? "ok" : "fail");
+
+    if (ok && paymentResponseHeader) {
+      try {
+        const decoded = JSON.parse(
+          Buffer.from(paymentResponseHeader, "base64").toString("utf8"),
+        ) as { success?: boolean; transaction?: string; payer?: string };
+        const jobId = (
+          body as { job?: { id?: string } }
+        )?.job?.id;
+        if (decoded.success && decoded.transaction && jobId) {
+          await recordSettledPayment({
+            jobId,
+            txHash: decoded.transaction,
+            payer: decoded.payer ?? account.address,
+          });
+        }
+      } catch {
+        // ignore — the dashboard counter just won't tick
+      }
+    }
 
     let feedbackTx: `0x${string}` | null = null;
     let feedbackError: string | null = null;

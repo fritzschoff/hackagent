@@ -24,7 +24,24 @@ export async function pushJob(job: Job): Promise<void> {
   if (!r) return;
   await r.lpush("jobs:recent", JSON.stringify(job));
   await r.ltrim("jobs:recent", 0, 199);
-  await r.incrby("agent:earnings_cents", 100);
+}
+
+export async function recordSettledPayment(args: {
+  jobId: string;
+  txHash: string;
+  payer: string;
+}): Promise<void> {
+  const r = getRedis();
+  if (!r) return;
+  const added = await r.sadd("agent:settled-jobs", args.jobId);
+  if (added === 1) {
+    await r.incrby("agent:earnings_cents", 10);
+    await r.lpush(
+      "agent:settled-payments",
+      JSON.stringify({ ...args, ts: Date.now() }),
+    );
+    await r.ltrim("agent:settled-payments", 0, 199);
+  }
 }
 
 export async function getRecentJobs(limit = 50): Promise<Job[]> {
