@@ -20,12 +20,6 @@ async function main() {
     console.log("getLedger failed:", err instanceof Error ? err.message : err);
   }
 
-  try {
-    const accounts = await broker.inference.getProvidersWithBalance("inference");
-    console.log("providers with balance:", accounts);
-  } catch (err) {
-    console.log("getProvidersWithBalance failed:", err instanceof Error ? err.message : err);
-  }
 }
 
 main().catch((err) => { console.error("FATAL:", err); process.exit(1); });
