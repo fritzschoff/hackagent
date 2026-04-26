@@ -6,6 +6,7 @@ import { quoteSwap } from "@/lib/uniswap";
 import { pushJob } from "@/lib/redis";
 import { tryLoadAccount } from "@/lib/wallets";
 import { SwapIntent, type Job } from "@/lib/types";
+import { appendJobLog } from "@/lib/zg-storage";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -41,6 +42,19 @@ const handler = async (req: NextRequest): Promise<NextResponse> => {
   };
 
   waitUntil(pushJob(job));
+  waitUntil(
+    appendJobLog(job)
+      .then((res) => {
+        if (res) {
+          console.log(
+            `[zg-storage] job=${job.id} rootHash=${res.rootHash} anchored=${res.anchored} txHash=${res.txHash || "(pending sdk update)"}`,
+          );
+        }
+      })
+      .catch((err) => {
+        console.error(`[zg-storage] job=${job.id} failed:`, err?.message ?? err);
+      }),
+  );
 
   return NextResponse.json({ ok: true, job });
 };
