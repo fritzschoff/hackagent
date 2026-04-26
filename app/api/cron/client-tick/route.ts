@@ -6,6 +6,8 @@ import { verifyCronAuth, unauthorized } from "@/lib/cron-auth";
 import { recordCronTick } from "@/lib/redis";
 import { getClientWalletId, tryLoadAccount } from "@/lib/wallets";
 import { randomTestIntent } from "@/lib/uniswap";
+import { postFeedback } from "@/lib/erc8004";
+import { getSepoliaAddresses } from "@/lib/edge-config";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -57,6 +59,26 @@ export async function GET(req: NextRequest) {
 
     await recordCronTick(ROUTE, ok ? "ok" : "fail");
 
+    let feedbackTx: `0x${string}` | null = null;
+    let feedbackError: string | null = null;
+    if (ok && (walletId === "client1" || walletId === "client2" || walletId === "client3")) {
+      try {
+        const { agentId } = await getSepoliaAddresses();
+        if (agentId > 0) {
+          const r = await postFeedback({
+            agentId: BigInt(agentId),
+            score: 95,
+            decimals: 0,
+            tag: "swap-success",
+            clientWallet: walletId,
+          });
+          feedbackTx = r?.txHash ?? null;
+        }
+      } catch (e) {
+        feedbackError = e instanceof Error ? e.message : String(e);
+      }
+    }
+
     return NextResponse.json({
       ok,
       walletId,
@@ -65,6 +87,8 @@ export async function GET(req: NextRequest) {
       response: body,
       paymentResponse: paymentResponseHeader,
       status: res.status,
+      feedbackTx,
+      feedbackError,
     });
   } catch (err) {
     await recordCronTick(ROUTE, "fail");
