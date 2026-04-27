@@ -69,6 +69,7 @@ export async function GET(req: Request) {
         value: ens.registrationRecord,
       },
       lastSeenAt: ens.lastSeenAt,
+      reputationSummary: ens.reputationSummary,
     },
     pricing: {
       scheme: "reputation-graduated",

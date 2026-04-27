@@ -28,6 +28,7 @@ export const ENS_TEXT_KEYS = {
   description: "description",
   url: "url",
   lastSeenAt: "last-seen-at",
+  reputationSummary: "reputation-summary",
 } as const;
 
 export const RESOLVER_ABI = [

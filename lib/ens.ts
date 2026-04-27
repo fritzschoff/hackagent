@@ -24,6 +24,7 @@ export type ResolvedEns = {
   description: string | null;
   url: string | null;
   lastSeenAt: string | null;
+  reputationSummary: string | null;
   ensip25Key: string;
 };
 
@@ -80,15 +81,23 @@ export async function resolveAgentEns(opts?: {
     }
   }
 
-  const [address, agentCardUrl, registration, description, url, lastSeen] =
-    await Promise.all([
-      readEnsAddressSafe(AGENT_ENS),
-      readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.agentCard),
-      readEnsTextSafe(AGENT_ENS, REGISTRATION_KEY),
-      readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.description),
-      readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.url),
-      readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.lastSeenAt),
-    ]);
+  const [
+    address,
+    agentCardUrl,
+    registration,
+    description,
+    url,
+    lastSeen,
+    reputationSummary,
+  ] = await Promise.all([
+    readEnsAddressSafe(AGENT_ENS),
+    readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.agentCard),
+    readEnsTextSafe(AGENT_ENS, REGISTRATION_KEY),
+    readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.description),
+    readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.url),
+    readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.lastSeenAt),
+    readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.reputationSummary),
+  ]);
 
   const resolved: ResolvedEns = {
     name: AGENT_ENS,
@@ -98,6 +107,7 @@ export async function resolveAgentEns(opts?: {
     description,
     url,
     lastSeenAt: lastSeen,
+    reputationSummary,
     ensip25Key: REGISTRATION_KEY,
   };
 
