@@ -1,4 +1,4 @@
-import { Indexer, MemData } from "@0glabs/0g-ts-sdk";
+import { Indexer, MemData, defaultUploadOption } from "@0glabs/0g-ts-sdk";
 import { JsonRpcProvider, Wallet } from "ethers";
 import {
   createPublicClient,
@@ -14,11 +14,14 @@ const DEFAULT_INDEXER_URL = "https://indexer-storage-testnet-turbo.0g.ai";
 const FLOW_PROXY: Address = "0x22E03a6A89B950F1c82ec5e74F8eCa321a105296";
 const ENTRY_SIZE = 256n;
 const GALILEO_CHAIN_ID = 16602;
+const FILE_INFO_POLL_ATTEMPTS = 30;
+const FILE_INFO_POLL_INTERVAL_MS = 2_000;
 
 type WriteResult = {
   rootHash: string;
   txHash: string;
   anchored: boolean;
+  segmentsUploaded: boolean;
 };
 
 let cached: { indexer: Indexer; signer: Wallet; rpcUrl: string } | null = null;
@@ -168,12 +171,60 @@ async function anchorOnChain(
     value: fee,
     gasPrice,
   });
-  // Galileo blocks land slow + viem default timeout is too tight; we don't
-  // need the receipt for downstream logic, just the hash. Fire and return.
-  publicClient
-    .waitForTransactionReceipt({ hash: txHash, timeout: 180_000 })
-    .catch(() => undefined);
   return { txHash };
+}
+
+async function waitForFileInfoOnNodes(
+  zg: { indexer: Indexer; rpcUrl: string },
+  rootHash: string,
+): Promise<boolean> {
+  const [nodes, err] = await zg.indexer.selectNodes(1);
+  if (err || nodes.length === 0) {
+    console.error(
+      "[zg-storage] selectNodes failed:",
+      err?.message ?? "no nodes returned",
+    );
+    return false;
+  }
+  for (let attempt = 0; attempt < FILE_INFO_POLL_ATTEMPTS; attempt++) {
+    for (const node of nodes) {
+      try {
+        const info = await node.getFileInfo(rootHash, false);
+        if (info) return true;
+      } catch {
+        // Node not aware yet — try next.
+      }
+    }
+    await new Promise((r) => setTimeout(r, FILE_INFO_POLL_INTERVAL_MS));
+  }
+  return false;
+}
+
+async function uploadSegments(
+  zg: { indexer: Indexer; signer: Wallet; rpcUrl: string },
+  file: MemData,
+): Promise<boolean> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const signer = zg.signer as any;
+    const [, err] = await zg.indexer.upload(
+      file,
+      zg.rpcUrl,
+      signer,
+      { ...defaultUploadOption, skipTx: true, finalityRequired: false },
+    );
+    if (err) {
+      console.error("[zg-storage] segment upload failed:", err.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error(
+      "[zg-storage] segment upload threw:",
+      err instanceof Error ? err.message : err,
+    );
+    return false;
+  }
 }
 
 async function writeBlob(payload: object): Promise<WriteResult | null> {
@@ -182,32 +233,55 @@ async function writeBlob(payload: object): Promise<WriteResult | null> {
   const json = JSON.stringify(payload);
   const bytes = new TextEncoder().encode(json);
   const file = new MemData(bytes);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const signer = zg.signer as any;
-  const [res] = await zg.indexer.upload(file, zg.rpcUrl, signer);
-  if (!res?.rootHash) return null;
 
-  // SDK 0.3.3's on-chain submit() uses the old selector and reverts on
-  // Galileo. We compute the Merkle root via the SDK (which works), then
-  // submit ourselves with the new (SubmissionData, address submitter) shape.
-  let txHash = res.txHash || "";
-  let anchored = Boolean(res.txHash);
-  if (!anchored) {
-    try {
-      const r = await anchorOnChain(res.rootHash, bytes.byteLength);
-      if (r?.txHash) {
-        txHash = r.txHash;
-        anchored = true;
-      }
-    } catch (err) {
-      console.error(
-        "[zg-storage] anchor fallback failed:",
-        err instanceof Error ? err.message : err,
-      );
-    }
+  const [tree, treeErr] = await file.merkleTree();
+  if (treeErr || !tree) {
+    console.error(
+      "[zg-storage] merkle tree failed:",
+      treeErr?.message ?? "unknown",
+    );
+    return null;
+  }
+  const rootHash = tree.rootHash();
+  if (!rootHash) {
+    console.error("[zg-storage] empty rootHash from SDK");
+    return null;
   }
 
-  return { rootHash: res.rootHash, txHash, anchored };
+  const result: WriteResult = {
+    rootHash,
+    txHash: "",
+    anchored: false,
+    segmentsUploaded: false,
+  };
+
+  try {
+    const anchor = await anchorOnChain(rootHash, bytes.byteLength);
+    if (!anchor) return result;
+    result.txHash = anchor.txHash;
+    result.anchored = true;
+  } catch (err) {
+    console.error(
+      "[zg-storage] anchor failed:",
+      err instanceof Error ? err.message : err,
+    );
+    return result;
+  }
+
+  // Block until storage nodes index our submission, then re-enter the SDK
+  // upload path with skipTx so it dispatches segments without re-submitting.
+  const indexed = await waitForFileInfoOnNodes(zg, rootHash);
+  if (!indexed) {
+    console.warn(
+      `[zg-storage] FileInfo not visible to storage nodes within ${
+        (FILE_INFO_POLL_ATTEMPTS * FILE_INFO_POLL_INTERVAL_MS) / 1000
+      }s for root=${rootHash}; segments skipped`,
+    );
+    return result;
+  }
+
+  result.segmentsUploaded = await uploadSegments(zg, file);
+  return result;
 }
 
 export async function appendJobLog(job: Job): Promise<WriteResult | null> {
