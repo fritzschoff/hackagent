@@ -30,6 +30,7 @@ type AddressMap = {
   reputationCreditAddress?: `0x${string}`;
   slaBondAddress?: `0x${string}`;
   agentMergerAddress?: `0x${string}`;
+  complianceManifestAddress?: `0x${string}`;
 };
 
 function readVercelToken(): string {
@@ -213,6 +214,20 @@ async function main(): Promise<void> {
       agentMerger: `0x${string}`;
     };
     value.agentMergerAddress = mergerDep.agentMerger;
+  }
+
+  // Issue #6 (compliance manifest registry).
+  const compliancePath = join(
+    process.cwd(),
+    "contracts",
+    "deployments",
+    `${network}-compliance.json`,
+  );
+  if (existsSync(compliancePath)) {
+    const dep = JSON.parse(readFileSync(compliancePath, "utf8")) as {
+      complianceManifest: `0x${string}`;
+    };
+    value.complianceManifestAddress = dep.complianceManifest;
   }
   const id = readEdgeConfigId();
   const token = readVercelToken();

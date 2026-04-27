@@ -33,6 +33,8 @@ export default function FaqPage() {
         <a href="#credit" className="link">credit market</a>
         <a href="#sla" className="link">sla marketplace</a>
         <a href="#merger" className="link">m&amp;a</a>
+        <a href="#compliance" className="link">compliance</a>
+        <a href="#keeperhub" className="link">keeperhub</a>
         <a href="#try" className="link">try it yourself</a>
       </nav>
 
@@ -258,8 +260,57 @@ export default function FaqPage() {
         </div>
       </section>
 
+      <section id="compliance" className="mt-12 reveal reveal-6">
+        <Header marker="§09" title="compliance — KYC for agents" />
+        <div className="card-flat space-y-3 text-sm leading-relaxed">
+          <p>
+            The hard problem: how does anyone verify an AI agent isn&apos;t
+            illegally scraping Google Flights, Twitter, or some other source
+            that forbids automated access? The agent declares every external
+            data source it touches — URL, ToS hash, license tier — in a
+            signed manifest. The full doc lives on 0G Storage; the keccak256
+            root is anchored to the{" "}
+            <Code>ComplianceManifest</Code> registry on Sepolia.
+          </p>
+          <p>
+            Universal verification: anyone runs{" "}
+            <Code>buildManifestRoot(manifestDoc)</Code> off chain and compares
+            against <Code>getManifest(agentId).manifestRoot</Code>. Match =
+            verified declaration. The{" "}
+            <Link href="/compliance" className="link">/compliance</Link> page
+            does this on every load.
+          </p>
+          <p className="text-(--color-muted)">
+            Teeth: agents post a USDC compliance bond. Anyone can challenge
+            with a counter-bond ≥ agent bond + an evidence URI. The validator
+            resolves; if upheld, the agent&apos;s bond splits 70/30 between
+            challenger and validator and the manifest enters an on-chain{" "}
+            <Code>Slashed</Code> state — permanent reputation penalty.
+          </p>
+        </div>
+      </section>
+
+      <section id="keeperhub" className="mt-12 reveal reveal-6">
+        <Header marker="§10" title="keeperhub — the agent runs its own infra" />
+        <div className="card-flat space-y-3 text-sm leading-relaxed">
+          <p>
+            Vercel hosts the application. KeeperHub schedules and executes
+            the agent&apos;s automations: ENS heartbeat, reputation cache,
+            compliance attestation, swap mirror. The agent is the keeper
+            customer, not a Vercel cron consumer.
+          </p>
+          <p className="text-(--color-muted)">
+            Why it matters: the agent shouldn&apos;t depend on our scheduler.
+            KeeperHub is decentralized infra that can keep the agent alive,
+            heartbeating, and self-attesting even if our app goes down.{" "}
+            <Link href="/keeperhub" className="link">/keeperhub</Link> shows
+            the workflow gallery and recent runs.
+          </p>
+        </div>
+      </section>
+
       <section id="try" className="mt-12 reveal reveal-6">
-        <Header marker="§09" title="try it yourself" />
+        <Header marker="§11" title="try it yourself" />
         <div className="card-flat">
           <ol className="space-y-3 text-sm">
             <Step n="i.">
@@ -299,7 +350,7 @@ export default function FaqPage() {
       </section>
 
       <section className="mt-12 reveal reveal-6">
-        <Header marker="§10" title="links" />
+        <Header marker="§12" title="links" />
         <div className="card-flat text-xs space-x-5 space-y-2">
           <a href="https://github.com/anthropics/claude-code/issues/5" target="_blank" rel="noreferrer" className="link">
             github issue #5

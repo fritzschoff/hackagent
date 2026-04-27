@@ -175,9 +175,11 @@ const handler = async (req: NextRequest): Promise<NextResponse> => {
         );
         if (res.txHash) {
           await pushKeeperhubRun({
+            kind: "swap",
             jobId: job.id,
             workflowRunId: res.workflowRunId,
             txHash: res.txHash,
+            summary: `${intent.tokenIn.slice(0, 6)}→${intent.tokenOut.slice(0, 6)}`,
             ts: Date.now(),
           });
         }

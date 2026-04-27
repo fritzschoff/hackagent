@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCronAuth, unauthorized } from "@/lib/cron-auth";
-import { recordCronTick, getRedis } from "@/lib/redis";
+import { recordCronTick, getRedis, pushKeeperhubRun } from "@/lib/redis";
 import { getSepoliaAddresses } from "@/lib/edge-config";
 import {
   computeReputationSummary,
   summaryToCompactText,
 } from "@/lib/rep-summary";
 import { setEnsTextRecord } from "@/lib/ens";
+import { triggerKeeperHub } from "@/lib/keeperhub";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -23,6 +24,30 @@ export async function GET(req: NextRequest) {
   if (!agentId || agentId === 0) {
     await recordCronTick(ROUTE, "ok");
     return NextResponse.json({ ok: true, skipped: "agentId missing" });
+  }
+
+  // Issue #7 — KeeperHub-first execution. If the workflow is configured,
+  // KeeperHub does the text-record write itself and we record the run.
+  const kh = await triggerKeeperHub({
+    kind: "reputation-cache",
+    input: { agentId, ts: Date.now() },
+    pollForTx: true,
+  });
+  if (kh) {
+    await pushKeeperhubRun({
+      kind: "reputation-cache",
+      jobId: `rep-cache-${Date.now()}`,
+      workflowRunId: kh.workflowRunId,
+      txHash: kh.txHash,
+      summary: kh.txHash ? "summary text record updated" : "queued",
+      ts: Date.now(),
+    });
+    await recordCronTick(ROUTE, kh.status === "failed" ? "fail" : "ok");
+    return NextResponse.json({
+      ok: kh.status !== "failed",
+      via: "keeperhub",
+      run: kh,
+    });
   }
 
   let txHash: string | null = null;

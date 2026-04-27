@@ -2,23 +2,25 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "crons": [
-    { "path": "/api/cron/agent-tick",       "schedule": "0 * * * *" },
-    { "path": "/api/cron/client-tick?id=1", "schedule": "0 * * * *" },
-    { "path": "/api/cron/client-tick?id=2", "schedule": "0 * * * *" },
-    { "path": "/api/cron/client-tick?id=3", "schedule": "0 * * * *" },
-    { "path": "/api/cron/validator-tick",   "schedule": "0 */12 * * *" },
-    { "path": "/api/cron/storage-sync",     "schedule": "0 * * * *" },
-    { "path": "/api/cron/reputation-cache", "schedule": "0 * * * *" },
-    { "path": "/api/cron/ens-heartbeat",    "schedule": "0 * * * *" }
+    { "path": "/api/cron/agent-tick",         "schedule": "0 * * * *" },
+    { "path": "/api/cron/client-tick?id=1",   "schedule": "0 * * * *" },
+    { "path": "/api/cron/client-tick?id=2",   "schedule": "0 * * * *" },
+    { "path": "/api/cron/client-tick?id=3",   "schedule": "0 * * * *" },
+    { "path": "/api/cron/validator-tick",     "schedule": "0 */12 * * *" },
+    { "path": "/api/cron/storage-sync",       "schedule": "0 * * * *" },
+    { "path": "/api/cron/reputation-cache",   "schedule": "0 * * * *" },
+    { "path": "/api/cron/ens-heartbeat",      "schedule": "0 * * * *" },
+    { "path": "/api/cron/compliance-attest",  "schedule": "0 */6 * * *" }
   ],
   "functions": {
-    "app/api/a2a/jobs/route.ts":            { "maxDuration": 300 },
-    "app/api/cron/agent-tick/route.ts":     { "maxDuration": 60 },
-    "app/api/cron/client-tick/route.ts":    { "maxDuration": 60 },
-    "app/api/cron/validator-tick/route.ts": { "maxDuration": 300 },
-    "app/api/cron/storage-sync/route.ts":   { "maxDuration": 120 },
+    "app/api/a2a/jobs/route.ts":              { "maxDuration": 300 },
+    "app/api/cron/agent-tick/route.ts":       { "maxDuration": 60 },
+    "app/api/cron/client-tick/route.ts":      { "maxDuration": 60 },
+    "app/api/cron/validator-tick/route.ts":   { "maxDuration": 300 },
+    "app/api/cron/storage-sync/route.ts":     { "maxDuration": 120 },
     "app/api/cron/reputation-cache/route.ts": { "maxDuration": 60 },
-    "app/api/cron/ens-heartbeat/route.ts":  { "maxDuration": 30 }
+    "app/api/cron/ens-heartbeat/route.ts":    { "maxDuration": 30 },
+    "app/api/cron/compliance-attest/route.ts":{ "maxDuration": 60 }
   },
   "rewrites": [
     {

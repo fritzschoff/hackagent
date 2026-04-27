@@ -14,6 +14,7 @@ const CONTRACTS = [
   "ReputationCredit",
   "SlaBond",
   "AgentMerger",
+  "ComplianceManifest",
 ] as const;
 
 function syncAbi(name: string): void {

@@ -376,14 +376,18 @@ export default async function DashboardPage() {
                   <span>{r.jobId.slice(0, 8)}…</span>
                   <span className="text-(--color-muted)">run</span>
                   <span>{r.workflowRunId.slice(0, 8)}…</span>
-                  <a
-                    href={`${BASE_SEPOLIA_BASESCAN}/tx/${r.txHash}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="link ml-auto"
-                  >
-                    {r.txHash.slice(0, 10)}… →
-                  </a>
+                  {r.txHash ? (
+                    <a
+                      href={`${BASE_SEPOLIA_BASESCAN}/tx/${r.txHash}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="link ml-auto"
+                    >
+                      {r.txHash.slice(0, 10)}… →
+                    </a>
+                  ) : (
+                    <span className="text-(--color-muted) ml-auto">no tx</span>
+                  )}
                 </li>
               ))}
             </ul>

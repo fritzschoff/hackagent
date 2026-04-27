@@ -1,5 +1,9 @@
 import type { SwapIntent, Quote } from "@/lib/types";
-import { getKeeperHubWorkflowId } from "@/lib/edge-config";
+import {
+  getKeeperHubWorkflowId,
+  getKeeperHubWorkflowIdByKind,
+  type KeeperHubKind,
+} from "@/lib/edge-config";
 
 const MCP_URL = process.env.KEEPERHUB_MCP_URL ?? "https://app.keeperhub.com/mcp";
 
@@ -155,6 +159,50 @@ async function pollForTxHash(
     }
   }
   return null;
+}
+
+/// Generic kind-tagged trigger. Returns null when the workflow ID isn't
+/// configured (env var or Edge Config) — callers fall back to the inline
+/// implementation. The optional `pollForTx` flag controls whether we wait
+/// for an on-chain transactionHash; for non-tx workflows (heartbeat etc.)
+/// we return as soon as KeeperHub acknowledges the execution.
+export async function triggerKeeperHub(args: {
+  kind: KeeperHubKind;
+  input: Record<string, unknown>;
+  pollForTx?: boolean;
+}): Promise<WorkflowResult | null> {
+  const apiKey = process.env.KEEPERHUB_API_KEY;
+  if (!apiKey) return null;
+
+  const workflowId = await getKeeperHubWorkflowIdByKind(args.kind);
+  if (!workflowId) return null;
+
+  try {
+    const start = await callTool<{ executionId: string; status: string }>(
+      apiKey,
+      "execute_workflow",
+      { workflowId, input: args.input },
+    );
+    if (!args.pollForTx) {
+      return {
+        workflowRunId: start.executionId,
+        txHash: null,
+        status: "running",
+      };
+    }
+    const txHash = await pollForTxHash(apiKey, start.executionId, 30);
+    return {
+      workflowRunId: start.executionId,
+      txHash,
+      status: txHash ? "completed" : "running",
+    };
+  } catch (err) {
+    console.error(
+      `[keeperhub] triggerKeeperHub(${args.kind}) failed:`,
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
 }
 
 export async function getWorkflowRun(
