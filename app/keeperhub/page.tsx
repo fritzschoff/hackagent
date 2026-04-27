@@ -1,48 +1,38 @@
 import { getRecentKeeperhubRuns, type KeeperhubRunKind } from "@/lib/redis";
-import { getKeeperHubWorkflowIdByKind } from "@/lib/edge-config";
+import {
+  getKeeperHubWorkflowIdByKind,
+  getSepoliaAddresses,
+} from "@/lib/edge-config";
+import {
+  AGENT_ENS,
+  SEPOLIA_PUBLIC_RESOLVER,
+} from "@/lib/ens-constants";
+import { buildManifestRoot, TRADEWISE_MANIFEST } from "@/lib/compliance";
+import { namehash } from "viem";
 import SiteNav from "@/components/site-nav";
 
 export const revalidate = 30;
 
 const SEPOLIA_ETHERSCAN = "https://sepolia.etherscan.io";
 
+type NodeKind = "trigger" | "web3-read" | "web3-write" | "transform" | "conditional" | "webhook";
+
+type RecipeNode = {
+  kind: NodeKind;
+  title: string;
+  /// Lines of `key: value` rendered as a copyable definition list.
+  props: Array<{ k: string; v: string; mono?: boolean }>;
+  note?: string;
+};
+
 type Workflow = {
   kind: KeeperhubRunKind;
   title: string;
   schedule: string;
   description: string;
+  envVar: string;
+  recipe: RecipeNode[];
 };
-
-const WORKFLOWS: Workflow[] = [
-  {
-    kind: "heartbeat",
-    title: "ens heartbeat",
-    schedule: "hourly",
-    description:
-      "writes a `lastSeenAt` timestamp to the agent's ENS text records so the dashboard can show liveness without trusting our cron infra.",
-  },
-  {
-    kind: "reputation-cache",
-    title: "reputation cache",
-    schedule: "hourly",
-    description:
-      "reads ERC-8004 feedback count + score, writes a compact summary to the `reputation-summary` ENS text record. one tx, idempotent (skipped when unchanged).",
-  },
-  {
-    kind: "compliance-attest",
-    title: "compliance attest",
-    schedule: "every 6h",
-    description:
-      "re-hashes the canonical compliance manifest off chain, reads the on-chain root, fires an alarm if they drift. ties issue #6 to issue #7.",
-  },
-  {
-    kind: "swap",
-    title: "swap mirror",
-    schedule: "per quote",
-    description:
-      "every paid x402 quote spawns a workflow that mirrors the swap intent as an on-chain ERC-20 transfer. the original keeperhub usecase, kept as a smoke test.",
-  },
-];
 
 function relativeAge(ts: number): string {
   const sec = Math.max(0, Math.round((Date.now() - ts) / 1000));
@@ -56,7 +46,284 @@ function shortHex(hex: string): string {
   return `${hex.slice(0, 10)}…${hex.slice(-6)}`;
 }
 
+const NODE_LABEL: Record<NodeKind, string> = {
+  trigger: "trigger",
+  "web3-read": "web3 · read",
+  "web3-write": "web3 · write",
+  transform: "transform",
+  conditional: "conditional",
+  webhook: "http · webhook",
+};
+
+const NODE_TONE: Record<NodeKind, string> = {
+  trigger: "text-(--color-amber)",
+  "web3-read": "text-(--color-muted)",
+  "web3-write": "text-(--color-accent)",
+  transform: "text-(--color-muted)",
+  conditional: "text-(--color-muted)",
+  webhook: "text-(--color-accent)",
+};
+
 export default async function KeeperHubPage() {
+  const addresses = await getSepoliaAddresses();
+  const reputationRegistry = addresses.reputationRegistry;
+  const complianceManifest = addresses.complianceManifestAddress ?? "(deploy ComplianceManifest first)";
+  const ensNode = namehash(AGENT_ENS);
+  const expectedRoot = buildManifestRoot(TRADEWISE_MANIFEST);
+  const webhookBase =
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://hackagent-nine.vercel.app";
+  const webhookUrl = `${webhookBase}/api/webhooks/keeperhub`;
+
+  const WORKFLOWS: Workflow[] = [
+    {
+      kind: "heartbeat",
+      title: "ens heartbeat",
+      schedule: "hourly",
+      envVar: "KEEPERHUB_WORKFLOW_ID_HEARTBEAT",
+      description:
+        "writes a `last-seen-at` timestamp to the agent's ENS text records so the dashboard can show liveness without trusting our cron infra. one tx per run.",
+      recipe: [
+        {
+          kind: "trigger",
+          title: "cron schedule",
+          props: [
+            { k: "cron", v: "0 * * * *", mono: true },
+            { k: "input.ts", v: "{{$now.timestamp}}", mono: true },
+            {
+              k: "or webhook",
+              v: `POST ${webhookBase}/api/cron/ens-heartbeat`,
+              mono: true,
+            },
+          ],
+          note: "either keeperhub's own cron, or call the vercel cron route which forwards to this workflow when the env var is set.",
+        },
+        {
+          kind: "web3-write",
+          title: "setText (sepolia)",
+          props: [
+            { k: "chain", v: "ethereum sepolia (11155111)", mono: false },
+            { k: "address", v: SEPOLIA_PUBLIC_RESOLVER, mono: true },
+            { k: "function", v: "setText(bytes32,string,string)", mono: true },
+            { k: "node", v: ensNode, mono: true },
+            { k: "key", v: "last-seen-at", mono: true },
+            { k: "value", v: "{{$trigger.input.ts}}", mono: true },
+            { k: "signer", v: "PRICEWATCH_PK (deployer wallet)", mono: false },
+          ],
+          note: "ENS PublicResolver on Sepolia. node = namehash('tradewise.agentlab.eth'). signer must own the ENS subname (deployer pricewatch wallet does).",
+        },
+        {
+          kind: "webhook",
+          title: "callback to /api/webhooks/keeperhub",
+          props: [
+            { k: "method", v: "POST", mono: true },
+            { k: "url", v: webhookUrl, mono: true },
+            {
+              k: "body",
+              v: '{"kind":"heartbeat","workflowRunId":"{{$run.id}}","txHash":"{{$step2.txHash}}","summary":"ens last-seen-at updated"}',
+              mono: true,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      kind: "reputation-cache",
+      title: "reputation cache",
+      schedule: "hourly",
+      envVar: "KEEPERHUB_WORKFLOW_ID_REPUTATION_CACHE",
+      description:
+        "reads ERC-8004 feedback count + score, writes a compact summary to the `reputation-summary` ENS text record. one tx, idempotent (skip the write when value is unchanged).",
+      recipe: [
+        {
+          kind: "trigger",
+          title: "cron schedule",
+          props: [
+            { k: "cron", v: "0 * * * *", mono: true },
+            { k: "input.agentId", v: String(addresses.agentId), mono: true },
+          ],
+        },
+        {
+          kind: "web3-read",
+          title: "ReputationRegistry.feedbackCount",
+          props: [
+            { k: "chain", v: "sepolia", mono: false },
+            { k: "address", v: reputationRegistry, mono: true },
+            {
+              k: "function",
+              v: "feedbackCount(uint256) view returns (uint256)",
+              mono: true,
+            },
+            { k: "args", v: "[{{$trigger.input.agentId}}]", mono: true },
+            { k: "outputAs", v: "$step2.count", mono: true },
+          ],
+        },
+        {
+          kind: "transform",
+          title: "compose summary string",
+          props: [
+            {
+              k: "expression",
+              v: '"feedback=" + $step2.count + " ts=" + $trigger.input.ts',
+              mono: true,
+            },
+            { k: "outputAs", v: "$step3.summary", mono: true },
+          ],
+        },
+        {
+          kind: "web3-read",
+          title: "ENS PublicResolver.text (idempotency check)",
+          props: [
+            { k: "address", v: SEPOLIA_PUBLIC_RESOLVER, mono: true },
+            {
+              k: "function",
+              v: "text(bytes32,string) view returns (string)",
+              mono: true,
+            },
+            { k: "args", v: `[${ensNode}, "reputation-summary"]`, mono: true },
+            { k: "outputAs", v: "$step4.current", mono: true },
+          ],
+          note: "skip the write step if $step4.current === $step3.summary — saves gas on quiet hours.",
+        },
+        {
+          kind: "conditional",
+          title: "$step4.current !== $step3.summary",
+          props: [
+            { k: "if false", v: "skip step 6 (and webhook with summary='no-op')", mono: false },
+            { k: "if true", v: "continue to setText", mono: false },
+          ],
+        },
+        {
+          kind: "web3-write",
+          title: "setText reputation-summary",
+          props: [
+            { k: "address", v: SEPOLIA_PUBLIC_RESOLVER, mono: true },
+            { k: "function", v: "setText(bytes32,string,string)", mono: true },
+            { k: "node", v: ensNode, mono: true },
+            { k: "key", v: "reputation-summary", mono: true },
+            { k: "value", v: "{{$step3.summary}}", mono: true },
+            { k: "signer", v: "PRICEWATCH_PK", mono: false },
+          ],
+        },
+        {
+          kind: "webhook",
+          title: "callback",
+          props: [
+            { k: "url", v: webhookUrl, mono: true },
+            {
+              k: "body",
+              v: '{"kind":"reputation-cache","workflowRunId":"{{$run.id}}","txHash":"{{$step6.txHash}}","summary":"{{$step3.summary}}"}',
+              mono: true,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      kind: "compliance-attest",
+      title: "compliance attest",
+      schedule: "every 6h",
+      envVar: "KEEPERHUB_WORKFLOW_ID_COMPLIANCE_ATTEST",
+      description:
+        "re-reads the on-chain manifest root, compares to the expected root passed in by the caller, fires an alarm if they drift. ties issue #6 (compliance) to issue #7 (keeper).",
+      recipe: [
+        {
+          kind: "trigger",
+          title: "cron schedule",
+          props: [
+            { k: "cron", v: "0 */6 * * *", mono: true },
+            { k: "input.registry", v: complianceManifest, mono: true },
+            { k: "input.agentId", v: String(addresses.agentId), mono: true },
+            { k: "input.expectedRoot", v: expectedRoot, mono: true },
+          ],
+          note: "expectedRoot = keccak256(canonicalJson(TRADEWISE_MANIFEST)) computed off chain. anyone can re-derive it.",
+        },
+        {
+          kind: "web3-read",
+          title: "ComplianceManifest.getManifest",
+          props: [
+            { k: "chain", v: "sepolia", mono: false },
+            { k: "address", v: "{{$trigger.input.registry}}", mono: true },
+            {
+              k: "function",
+              v: "getManifest(uint256) view returns (address,bytes32,string,uint256,uint64,uint8,address,uint256,string)",
+              mono: true,
+            },
+            { k: "args", v: "[{{$trigger.input.agentId}}]", mono: true },
+            { k: "outputAs", v: "$step2 (manifestRoot at index 1)", mono: true },
+          ],
+        },
+        {
+          kind: "conditional",
+          title: "$step2[1] === $trigger.input.expectedRoot",
+          props: [
+            { k: "if true", v: 'webhook summary = "verified"', mono: false },
+            {
+              k: "if false",
+              v: 'webhook summary = "DRIFT detected: " + $step2[1] + " vs " + $trigger.input.expectedRoot',
+              mono: false,
+            },
+          ],
+          note: "drift means either the manifest doc was updated without re-committing, or someone overwrote the on-chain root. both demand human attention.",
+        },
+        {
+          kind: "webhook",
+          title: "callback",
+          props: [
+            { k: "url", v: webhookUrl, mono: true },
+            {
+              k: "body",
+              v: '{"kind":"compliance-attest","workflowRunId":"{{$run.id}}","txHash":null,"summary":"{{$step3.summary}}"}',
+              mono: true,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      kind: "swap",
+      title: "swap mirror",
+      schedule: "per quote",
+      envVar: "KEEPERHUB_WORKFLOW_ID_SWAP",
+      description:
+        "every paid x402 quote spawns a workflow that mirrors the swap intent as an on-chain ERC-20 transfer. the original keeperhub usecase, kept as a smoke test.",
+      recipe: [
+        {
+          kind: "trigger",
+          title: "webhook (called by /api/a2a/jobs)",
+          props: [
+            { k: "input.tokenIn", v: "{{intent.tokenIn}}", mono: true },
+            { k: "input.tokenOut", v: "{{intent.tokenOut}}", mono: true },
+            { k: "input.amountIn", v: "{{intent.amountIn}}", mono: true },
+            { k: "input.amountOut", v: "{{quote.amountOut}}", mono: true },
+          ],
+        },
+        {
+          kind: "web3-write",
+          title: "ERC20.transfer (placeholder mirror)",
+          props: [
+            { k: "chain", v: "sepolia or any erc-20 testnet", mono: false },
+            { k: "address", v: "{{$trigger.input.tokenIn}}", mono: true },
+            { k: "function", v: "transfer(address,uint256)", mono: true },
+            { k: "args", v: "[recipient, $trigger.input.amountIn]", mono: true },
+          ],
+          note: "this is the existing thin demo workflow. replace with a real Uniswap router call to make this not-thin.",
+        },
+        {
+          kind: "webhook",
+          title: "callback",
+          props: [
+            { k: "url", v: webhookUrl, mono: true },
+            {
+              k: "body",
+              v: '{"kind":"swap","workflowRunId":"{{$run.id}}","txHash":"{{$step2.txHash}}","summary":"swap mirrored"}',
+              mono: true,
+            },
+          ],
+        },
+      ],
+    },
+  ];
+
   const [allRuns, workflowIds] = await Promise.all([
     getRecentKeeperhubRuns(120),
     Promise.all(
@@ -94,12 +361,12 @@ export default async function KeeperHubPage() {
         </h1>
         <p className="mt-3 text-sm max-w-2xl text-(--color-muted)">
           The agent runs its own infrastructure. Vercel hosts the application;
-          KeeperHub schedules and executes the agent&apos;s automations —
-          ENS heartbeat, reputation cache, compliance attestation, swap
-          mirror. Each workflow is configured in KeeperHub and triggered
-          either by KeeperHub&apos;s own scheduler or by user activity.
-          Vercel cron handlers stay as fallbacks; the primary execution path
-          is keeper-driven.
+          KeeperHub schedules and executes the agent&apos;s automations. Each
+          workflow card below is a recipe — open KeeperHub&apos;s dashboard,
+          create a new workflow, drop in the listed nodes with the exact
+          parameters shown, and paste the resulting workflow id back into the
+          env var (or Edge Config key). Vercel cron handlers stay as
+          fallbacks; the primary execution path is keeper-driven.
         </p>
       </header>
 
@@ -114,14 +381,39 @@ export default async function KeeperHubPage() {
         <Cell label="recent runs" value={String(allRuns.length)} accent />
         <Cell
           label="last run"
-          value={
-            allRuns[0] ? relativeAge(allRuns[0].ts) : "—"
-          }
+          value={allRuns[0] ? relativeAge(allRuns[0].ts) : "—"}
           mono
         />
       </section>
 
-      <div className="mt-12 space-y-8 reveal reveal-3">
+      <section className="mt-10 card-flat reveal reveal-3 space-y-3 text-xs leading-relaxed">
+        <p className="tag">shared parameters · copy these into every workflow</p>
+        <dl className="grid grid-cols-1 sm:grid-cols-[10rem_1fr] gap-y-1.5 font-mono">
+          <dt className="tag">webhook url</dt>
+          <dd className="break-all">{webhookUrl}</dd>
+          <dt className="tag">ens name</dt>
+          <dd>{AGENT_ENS}</dd>
+          <dt className="tag">ens namehash</dt>
+          <dd className="break-all text-(--color-accent)">{ensNode}</dd>
+          <dt className="tag">resolver</dt>
+          <dd>{SEPOLIA_PUBLIC_RESOLVER}</dd>
+          <dt className="tag">reputation registry</dt>
+          <dd>{reputationRegistry}</dd>
+          <dt className="tag">compliance registry</dt>
+          <dd>{complianceManifest}</dd>
+          <dt className="tag">expected manifest root</dt>
+          <dd className="break-all text-(--color-accent)">{expectedRoot}</dd>
+          <dt className="tag">signer wallet</dt>
+          <dd>
+            PRICEWATCH_PK ·{" "}
+            <span className="text-(--color-muted)">
+              owns the ENS subname; use it for any setText / setAgentWallet writes
+            </span>
+          </dd>
+        </dl>
+      </section>
+
+      <div className="mt-12 space-y-12 reveal reveal-3">
         {WORKFLOWS.map((w, i) => {
           const runs = allRuns.filter((r) => r.kind === w.kind).slice(0, 6);
           const id = idByKind[w.kind];
@@ -129,21 +421,15 @@ export default async function KeeperHubPage() {
           return (
             <section key={w.kind}>
               <div className="flex items-baseline gap-5 mb-5">
-                <span className="section-marker">
-                  §0{i + 1}
-                </span>
+                <span className="section-marker">§0{i + 1}</span>
                 <div>
                   <h2 className="display text-2xl">{w.title}</h2>
                   <p className="tag mt-1">
                     {w.schedule} ·{" "}
                     {id ? (
-                      <span className="text-(--color-accent)">
-                        configured
-                      </span>
+                      <span className="text-(--color-accent)">configured</span>
                     ) : (
-                      <span className="text-(--color-amber)">
-                        not configured
-                      </span>
+                      <span className="text-(--color-amber)">not configured</span>
                     )}
                     {lastTs ? (
                       <span className="text-(--color-muted)">
@@ -155,54 +441,100 @@ export default async function KeeperHubPage() {
                 </div>
               </div>
 
-              <div className="card-flat space-y-3">
+              <div className="card-flat space-y-4">
                 <p className="text-xs text-(--color-muted) leading-relaxed">
                   {w.description}
                 </p>
-                {id ? (
-                  <p className="text-xs font-mono text-(--color-muted)">
-                    workflow id ·{" "}
-                    <span className="text-(--color-fg)">{id}</span>
-                  </p>
-                ) : (
-                  <p className="text-xs font-mono text-(--color-amber)">
-                    set <code>KEEPERHUB_WORKFLOW_ID_{w.kind.toUpperCase().replace(/-/g, "_")}</code>{" "}
-                    or the matching Edge Config key to enable
-                  </p>
-                )}
+                <p className="text-xs font-mono text-(--color-muted)">
+                  env var ·{" "}
+                  {id ? (
+                    <span className="text-(--color-fg)">{w.envVar} = {id}</span>
+                  ) : (
+                    <span className="text-(--color-amber)">
+                      set {w.envVar} = &lt;workflow id&gt; in vercel + .env.local
+                    </span>
+                  )}
+                </p>
 
-                {runs.length > 0 ? (
-                  <ul className="pt-2 border-t border-(--color-rule)">
-                    {runs.map((r) => (
-                      <li
-                        key={`${r.workflowRunId}-${r.ts}`}
-                        className="flex items-baseline gap-3 py-2 border-b border-(--color-rule) last:border-0 font-mono text-xs"
-                      >
-                        <span className="tag w-20 shrink-0">
-                          {relativeAge(r.ts)}
+                <div className="pt-3 border-t border-(--color-rule) space-y-3">
+                  <p className="tag">recipe · {w.recipe.length} nodes</p>
+                  <ol className="space-y-3">
+                    {w.recipe.map((n, idx) => (
+                      <li key={idx} className="flex gap-3">
+                        <span className="display-italic text-base text-(--color-amber) shrink-0 w-7 leading-none pt-1">
+                          {idx + 1}.
                         </span>
-                        <span className="text-(--color-muted) flex-1">
-                          {r.summary ?? r.workflowRunId.slice(0, 18)}
-                        </span>
-                        {r.txHash ? (
-                          <a
-                            href={`${SEPOLIA_ETHERSCAN}/tx/${r.txHash}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="link"
-                          >
-                            {shortHex(r.txHash)}
-                          </a>
-                        ) : (
-                          <span className="text-(--color-muted)">
-                            no tx
-                          </span>
-                        )}
+                        <div className="flex-1 space-y-1.5">
+                          <div className="flex items-baseline gap-2 flex-wrap">
+                            <span
+                              className={`pill text-[0.65rem] ${NODE_TONE[n.kind]}`}
+                            >
+                              {NODE_LABEL[n.kind]}
+                            </span>
+                            <span className="display text-base">
+                              {n.title}
+                            </span>
+                          </div>
+                          <dl className="grid grid-cols-[7rem_1fr] gap-x-3 gap-y-0.5 text-[0.7rem]">
+                            {n.props.map((p, j) => (
+                              <div key={j} className="contents">
+                                <dt className="tag">{p.k}</dt>
+                                <dd
+                                  className={
+                                    p.mono
+                                      ? "font-mono break-all text-(--color-fg)"
+                                      : "text-(--color-muted)"
+                                  }
+                                >
+                                  {p.v}
+                                </dd>
+                              </div>
+                            ))}
+                          </dl>
+                          {n.note ? (
+                            <p className="text-[0.7rem] text-(--color-muted) italic leading-relaxed">
+                              {n.note}
+                            </p>
+                          ) : null}
+                        </div>
                       </li>
                     ))}
-                  </ul>
+                  </ol>
+                </div>
+
+                {runs.length > 0 ? (
+                  <div className="pt-3 border-t border-(--color-rule)">
+                    <p className="tag mb-2">recent runs</p>
+                    <ul>
+                      {runs.map((r) => (
+                        <li
+                          key={`${r.workflowRunId}-${r.ts}`}
+                          className="flex items-baseline gap-3 py-1.5 border-b border-(--color-rule) last:border-0 font-mono text-xs"
+                        >
+                          <span className="tag w-20 shrink-0">
+                            {relativeAge(r.ts)}
+                          </span>
+                          <span className="text-(--color-muted) flex-1 truncate">
+                            {r.summary ?? r.workflowRunId.slice(0, 18)}
+                          </span>
+                          {r.txHash ? (
+                            <a
+                              href={`${SEPOLIA_ETHERSCAN}/tx/${r.txHash}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="link"
+                            >
+                              {shortHex(r.txHash)}
+                            </a>
+                          ) : (
+                            <span className="text-(--color-muted)">no tx</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ) : (
-                  <p className="text-xs text-(--color-muted) italic pt-2 border-t border-(--color-rule)">
+                  <p className="text-xs text-(--color-muted) italic pt-3 border-t border-(--color-rule)">
                     no runs recorded yet
                   </p>
                 )}
