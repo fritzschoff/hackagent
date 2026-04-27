@@ -30,6 +30,11 @@ async function main() {
       `https://chainscan-galileo.0g.ai/tx/${res.txHash}`,
     );
   }
+  if (res?.segmentsUploaded) {
+    console.log(`✓ segments uploaded for root=${res.rootHash}`);
+  } else if (res?.anchored) {
+    console.warn("✗ segments not uploaded — anchored but storage nodes never indexed");
+  }
 }
 
 main().catch((err) => {

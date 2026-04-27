@@ -10,7 +10,7 @@ const ROUTE = "/api/cron/ens-heartbeat";
 
 export async function GET(req: NextRequest) {
   if (!verifyCronAuth(req)) return unauthorized();
-  await refreshHeartbeat();
-  await recordCronTick(ROUTE, "ok");
-  return NextResponse.json({ ok: true });
+  const result = await refreshHeartbeat();
+  await recordCronTick(ROUTE, result.status === "failed" ? "fail" : "ok");
+  return NextResponse.json({ ok: result.status !== "failed", ...result });
 }
