@@ -18,6 +18,7 @@ export type AddressMap = {
   reputationCreditAddress?: `0x${string}`;
   slaBondAddress?: `0x${string}`;
   agentMergerAddress?: `0x${string}`;
+  complianceManifestAddress?: `0x${string}`;
 };
 
 export type BaseSepoliaAddressMap = {
@@ -63,6 +64,40 @@ export async function getKeeperHubWorkflowId(): Promise<string | null> {
   if (!process.env.EDGE_CONFIG) return null;
   try {
     const v = await get<string>("keeperhub_workflow_swap");
+    return v ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export type KeeperHubKind =
+  | "swap"
+  | "heartbeat"
+  | "reputation-cache"
+  | "compliance-attest";
+
+const ENV_BY_KIND: Record<KeeperHubKind, string> = {
+  swap: "KEEPERHUB_WORKFLOW_ID_SWAP",
+  heartbeat: "KEEPERHUB_WORKFLOW_ID_HEARTBEAT",
+  "reputation-cache": "KEEPERHUB_WORKFLOW_ID_REPUTATION_CACHE",
+  "compliance-attest": "KEEPERHUB_WORKFLOW_ID_COMPLIANCE_ATTEST",
+};
+
+const EDGE_KEY_BY_KIND: Record<KeeperHubKind, string> = {
+  swap: "keeperhub_workflow_swap",
+  heartbeat: "keeperhub_workflow_heartbeat",
+  "reputation-cache": "keeperhub_workflow_reputation_cache",
+  "compliance-attest": "keeperhub_workflow_compliance_attest",
+};
+
+export async function getKeeperHubWorkflowIdByKind(
+  kind: KeeperHubKind,
+): Promise<string | null> {
+  const fromEnv = process.env[ENV_BY_KIND[kind]];
+  if (fromEnv) return fromEnv;
+  if (!process.env.EDGE_CONFIG) return null;
+  try {
+    const v = await get<string>(EDGE_KEY_BY_KIND[kind]);
     return v ?? null;
   } catch {
     return null;

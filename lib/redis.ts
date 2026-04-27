@@ -66,35 +66,56 @@ export async function getEarningsCents(): Promise<number> {
   return Number(v ?? 0);
 }
 
+export type KeeperhubRunKind =
+  | "swap"
+  | "heartbeat"
+  | "reputation-cache"
+  | "compliance-attest";
+
 export type KeeperhubRun = {
+  kind: KeeperhubRunKind;
   jobId: string;
   workflowRunId: string;
-  txHash: string;
+  txHash: string | null;
+  /// Free-form one-line status describing what the workflow produced;
+  /// rendered in the dashboard.
+  summary?: string;
   ts: number;
 };
 
 export async function pushKeeperhubRun(run: KeeperhubRun): Promise<void> {
   const r = getRedis();
   if (!r) return;
+  // Single combined list; readers can filter by kind. Wider history (200)
+  // because heartbeats and rep-cache fire hourly.
   await r.lpush("keeperhub:runs", JSON.stringify(run));
-  await r.ltrim("keeperhub:runs", 0, 49);
+  await r.ltrim("keeperhub:runs", 0, 199);
 }
 
 export async function getRecentKeeperhubRuns(
   limit = 10,
+  opts?: { kind?: KeeperhubRunKind },
 ): Promise<KeeperhubRun[]> {
   const r = getRedis();
   if (!r) return [];
-  const raw = await r.lrange("keeperhub:runs", 0, limit - 1);
-  return raw
+  // Read more than `limit` so kind-filtered reads still return enough.
+  const raw = await r.lrange("keeperhub:runs", 0, opts?.kind ? 199 : limit - 1);
+  const parsed = raw
     .map((s) => {
       try {
-        return JSON.parse(s) as KeeperhubRun;
+        const v = JSON.parse(s) as KeeperhubRun & { kind?: KeeperhubRunKind };
+        // Migrate older entries that pre-date the `kind` field.
+        if (!v.kind) v.kind = "swap";
+        return v;
       } catch {
         return null;
       }
     })
     .filter((x): x is KeeperhubRun => x !== null);
+  if (opts?.kind) {
+    return parsed.filter((r) => r.kind === opts.kind).slice(0, limit);
+  }
+  return parsed.slice(0, limit);
 }
 
 export type PricewatchCall = {

@@ -7,6 +7,8 @@ const ITEMS = [
   { href: "/credit", label: "credit", key: "credit" },
   { href: "/marketplace", label: "marketplace", key: "marketplace" },
   { href: "/merger", label: "m&a", key: "merger" },
+  { href: "/compliance", label: "compliance", key: "compliance" },
+  { href: "/keeperhub", label: "keeperhub", key: "keeperhub" },
   { href: "/faq", label: "faq", key: "faq" },
 ] as const;
 
