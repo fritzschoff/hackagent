@@ -27,17 +27,40 @@ export async function POST(req: NextRequest) {
   console.log("[keeperhub-webhook]", body);
 
   const kind = isKind(body.kind) ? body.kind : null;
-  const workflowRunId =
-    typeof body.workflowRunId === "string" ? body.workflowRunId : null;
-  if (!kind || !workflowRunId) {
+  if (!kind) {
     return Response.json(
-      { ok: false, error: "missing kind or workflowRunId" },
+      { ok: false, error: "missing or invalid kind" },
       { status: 400 },
     );
   }
+  // KeeperHub does not always populate workflowRunId via its template
+  // syntax; if the field arrives empty, synthesize one from kind + ts so
+  // the run still shows up on the dashboard.
+  const incomingRunId =
+    typeof body.workflowRunId === "string" ? body.workflowRunId : "";
+  const workflowRunId =
+    incomingRunId.length > 0 ? incomingRunId : `${kind}-${Date.now()}`;
 
   const txHash = typeof body.txHash === "string" ? body.txHash : null;
-  const summary = typeof body.summary === "string" ? body.summary : undefined;
+  let summary =
+    typeof body.summary === "string" ? body.summary : undefined;
+
+  // Compliance attestation: KeeperHub's tuple read returns an opaque
+  // `result` field with no bracket access on action outputs, so we compare
+  // here instead of in-workflow. The workflow posts manifestRoot +
+  // expectedRoot in the body and we derive a verified/DRIFT summary.
+  if (kind === "compliance-attest") {
+    const onChain =
+      typeof body.manifestRoot === "string" ? body.manifestRoot : null;
+    const expected =
+      typeof body.expectedRoot === "string" ? body.expectedRoot : null;
+    if (onChain && expected) {
+      const match = onChain.toLowerCase() === expected.toLowerCase();
+      summary = match
+        ? `verified · ${onChain.slice(0, 10)}…`
+        : `DRIFT · on-chain ${onChain.slice(0, 10)}… vs expected ${expected.slice(0, 10)}…`;
+    }
+  }
 
   await pushKeeperhubRun({
     kind,
