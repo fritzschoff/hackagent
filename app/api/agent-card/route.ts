@@ -1,4 +1,7 @@
-import { getSepoliaAddresses } from "@/lib/edge-config";
+import {
+  getSepoliaAddresses,
+  getBaseSepoliaAddresses,
+} from "@/lib/edge-config";
 import { AGENT_ENS, resolveAgentEns } from "@/lib/ens";
 import { tryLoadAccount } from "@/lib/wallets";
 
@@ -9,8 +12,9 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? `${url.protocol}//${url.host}`;
 
-  const [addresses, ens] = await Promise.all([
+  const [addresses, baseAddrs, ens] = await Promise.all([
     getSepoliaAddresses(),
+    getBaseSepoliaAddresses(),
     resolveAgentEns(),
   ]);
   const agent = tryLoadAccount("agent");
@@ -78,6 +82,20 @@ export async function GET(req: Request) {
           viewer: `${baseUrl}/inft`,
           standard: "ERC-7857",
           antiLaunderingMechanism: "EIP-8004#section-4.4",
+        }
+      : null,
+    ipo: baseAddrs.agentShares
+      ? {
+          shares: `eip155:84532:${baseAddrs.agentShares}`,
+          revenueSplitter: baseAddrs.revenueSplitter
+            ? `eip155:84532:${baseAddrs.revenueSplitter}`
+            : null,
+          sharesSale: baseAddrs.sharesSale
+            ? `eip155:84532:${baseAddrs.sharesSale}`
+            : null,
+          pricePerShareUsdc: baseAddrs.pricePerShareUsdc ?? null,
+          viewer: `${baseUrl}/ipo`,
+          model: "fractional revenue-share ERC-20 backed by x402 settlements",
         }
       : null,
     upstreamAgents: pricewatchAddr

@@ -197,6 +197,16 @@ async function getPaidHandler(): Promise<
 > {
   if (cachedPaidHandler) return cachedPaidHandler;
   const server = await getResourceServer();
+  // Phase 9: when X402_PAYOUT_OVERRIDE is set (typically the RevenueSplitter
+  // address), x402 USDC settlements land at the splitter instead of the
+  // agent EOA — turning the agent into a public revenue-share entity.
+  const payoutOverride = process.env.X402_PAYOUT_OVERRIDE as
+    | `0x${string}`
+    | undefined;
+  const payTo: `0x${string}` =
+    payoutOverride && /^0x[a-fA-F0-9]{40}$/.test(payoutOverride)
+      ? payoutOverride
+      : agentAddress!;
   cachedPaidHandler = withX402(
     handler,
     {
@@ -204,7 +214,7 @@ async function getPaidHandler(): Promise<
         scheme: "exact",
         price: QUOTE_PRICE_USD,
         network: X402_NETWORK,
-        payTo: agentAddress!,
+        payTo,
         maxTimeoutSeconds: 60,
       },
       description:
