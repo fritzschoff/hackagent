@@ -5,6 +5,9 @@ const CONTRACTS = [
   "IdentityRegistry",
   "ReputationRegistry",
   "ValidationRegistry",
+  "IdentityRegistryV2",
+  "AgentINFT",
+  "AgentBids",
 ] as const;
 
 function syncAbi(name: string): void {
