@@ -1,5 +1,6 @@
 import { getSepoliaAddresses } from "@/lib/edge-config";
 import { readRecentFeedback, readAgent } from "@/lib/erc8004";
+import SiteNav from "@/components/site-nav";
 
 export const revalidate = 60;
 
@@ -123,24 +124,30 @@ export default async function MarketplacePage() {
   const agents = [...liveAgents, ...mockAgents];
 
   return (
-    <main className="mx-auto max-w-5xl p-8 space-y-10">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">
-          agent marketplace
+    <main className="mx-auto max-w-6xl px-6 md:px-10 pb-24">
+      <SiteNav active="marketplace" />
+      <header className="pt-6 pb-10 border-b-2 border-(--color-fg) reveal reveal-1">
+        <p className="tag mb-2">sla-insured directory · sepolia</p>
+        <h1 className="display text-[clamp(2.25rem,6vw,4rem)] leading-[0.95] tracking-tight">
+          agent <span className="display-italic font-light">marketplace</span>
         </h1>
-        <p className="text-sm text-(--color-muted)">
-          Directory of x402-paid agents with slashable USDC bonds. Each job a
-          listed agent serves carries an SLA-backed bond — bad output +
-          validator response &lt; threshold = bond slashed, client refunded
-          70%, slasher rewarded 30%. Live entries below transact in real time;
-          stub entries illustrate the marketplace shape.
+        <p className="mt-3 text-sm text-(--color-muted) max-w-2xl">
+          x402-paid agents with slashable USDC bonds. Each job a listed agent
+          serves carries an SLA-backed bond: bad output + validator response{" "}
+          &lt; threshold = bond slashed, client refunded 70%, slasher rewarded
+          30%. Live entries transact in real time; stub entries illustrate
+          the marketplace shape.
         </p>
       </header>
 
-      <section className="space-y-4">
-        <h2 className="text-xs uppercase tracking-widest text-(--color-muted)">
-          live ({liveAgents.length})
-        </h2>
+      <section className="mt-12 reveal reveal-2">
+        <div className="flex items-baseline gap-5 mb-5">
+          <span className="section-marker">§01</span>
+          <div>
+            <h2 className="display text-2xl">live</h2>
+            <p className="tag mt-1">{liveAgents.length} agents transacting</p>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {liveAgents.map((a) => (
             <AgentCardView key={a.ens} agent={a} />
@@ -148,10 +155,14 @@ export default async function MarketplacePage() {
         </div>
       </section>
 
-      <section className="space-y-4">
-        <h2 className="text-xs uppercase tracking-widest text-(--color-muted)">
-          stub directory ({mockAgents.length})
-        </h2>
+      <section className="mt-12 reveal reveal-3">
+        <div className="flex items-baseline gap-5 mb-5">
+          <span className="section-marker">§02</span>
+          <div>
+            <h2 className="display text-2xl">directory</h2>
+            <p className="tag mt-1">{mockAgents.length} stub entries</p>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {agents
             .filter((a) => !a.isLive)
@@ -161,25 +172,43 @@ export default async function MarketplacePage() {
         </div>
       </section>
 
-      <section className="border border-(--color-border) rounded-lg p-4 text-xs space-y-2">
-        <h2 className="uppercase tracking-widest text-(--color-muted)">
-          how the bond works
-        </h2>
-        <ol className="list-decimal pl-5 space-y-1 text-(--color-muted)">
-          <li>
-            agent calls{" "}
-            <code>SlaBond.postBond(jobId, client, amount)</code> before serving
-            the job — USDC pulled into escrow.
-          </li>
-          <li>
-            happy path: validator approves output → agent calls{" "}
-            <code>release(jobId)</code> → bond returns.
-          </li>
-          <li>
-            unhappy path: validator calls <code>slash(jobId)</code> → 70% to
-            client refund, 30% to validator slasher reward.
-          </li>
-        </ol>
+      <section className="mt-12 reveal reveal-4">
+        <div className="flex items-baseline gap-5 mb-5">
+          <span className="section-marker">§03</span>
+          <div>
+            <h2 className="display text-2xl">how the bond works</h2>
+          </div>
+        </div>
+        <div className="card-flat">
+          <ol className="space-y-2 text-sm">
+            <li className="flex gap-3">
+              <span className="display-italic text-(--color-amber) text-base">i.</span>
+              <span className="text-(--color-muted)">
+                agent calls{" "}
+                <code className="text-(--color-fg)">
+                  SlaBond.postBond(jobId, client, amount)
+                </code>{" "}
+                before serving the job — USDC pulled into escrow.
+              </span>
+            </li>
+            <li className="flex gap-3">
+              <span className="display-italic text-(--color-accent) text-base">ii.</span>
+              <span className="text-(--color-muted)">
+                happy path: validator approves output → agent calls{" "}
+                <code className="text-(--color-fg)">release(jobId)</code> →
+                bond returns.
+              </span>
+            </li>
+            <li className="flex gap-3">
+              <span className="display-italic text-(--color-amber) text-base">iii.</span>
+              <span className="text-(--color-muted)">
+                unhappy path: validator calls{" "}
+                <code className="text-(--color-fg)">slash(jobId)</code> → 70%
+                to client refund, 30% to validator slasher reward.
+              </span>
+            </li>
+          </ol>
+        </div>
       </section>
     </main>
   );
@@ -187,52 +216,58 @@ export default async function MarketplacePage() {
 
 function AgentCardView({ agent }: { agent: AgentCard }) {
   return (
-    <div className="border border-(--color-border) rounded-lg p-4 space-y-2">
-      <div className="flex items-baseline gap-2">
-        <h3 className="text-base font-semibold">{agent.name}</h3>
-        <span className="text-xs text-(--color-muted)">{agent.ens}</span>
+    <article className="card flex flex-col gap-3">
+      <header className="flex items-baseline gap-2">
+        <h3 className="display text-xl">{agent.name}</h3>
+        <span className="text-xs text-(--color-muted) font-mono">
+          {agent.ens}
+        </span>
         {agent.isLive ? (
-          <span className="ml-auto text-xs text-(--color-accent)">● live</span>
+          <span className="ml-auto pill pill-live">
+            <span className="dot dot-pulse" /> live
+          </span>
         ) : (
-          <span className="ml-auto text-xs text-(--color-muted)">○ stub</span>
+          <span className="ml-auto pill pill-idle">stub</span>
         )}
-      </div>
-      <p className="text-xs text-(--color-muted)">{agent.description}</p>
-      <dl className="grid grid-cols-2 gap-y-1 text-xs font-mono">
+      </header>
+      <p className="text-xs text-(--color-muted) leading-relaxed">
+        {agent.description}
+      </p>
+      <dl className="grid grid-cols-2 gap-y-2 text-xs">
         <Row label="price" value={agent.pricePerCall} />
         <Row label="feedback" value={String(agent.feedbackCount)} />
         <Row label="bond" value={agent.bondSizeUsdc} />
         <Row label="30d uptime" value={agent.uptime30d} />
       </dl>
       {agent.isLive && agent.agentEoa ? (
-        <div className="text-xs space-x-3 pt-1">
+        <div className="text-xs space-x-4 pt-2 border-t border-(--color-rule)">
           <a
             href={`${ENS_APP}/${agent.ens}`}
             target="_blank"
             rel="noreferrer"
-            className="text-(--color-accent) underline"
+            className="link"
           >
-            ens ↗
+            ens →
           </a>
           <a
             href={`${SEPOLIA_ETHERSCAN}/address/${agent.agentEoa}`}
             target="_blank"
             rel="noreferrer"
-            className="text-(--color-accent) underline"
+            className="link"
           >
-            wallet ↗
+            wallet →
           </a>
         </div>
       ) : null}
-    </div>
+    </article>
   );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <>
-      <dt className="text-(--color-muted)">{label}</dt>
-      <dd>{value}</dd>
+      <dt className="tag">{label}</dt>
+      <dd className="font-mono">{value}</dd>
     </>
   );
 }

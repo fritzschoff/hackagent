@@ -341,26 +341,29 @@ export default function BidControls(props: Props) {
   );
 
   return (
-    <div className="border border-(--color-border) rounded-lg p-4 space-y-3">
-      <h2 className="text-xs uppercase tracking-widest text-(--color-muted)">
-        bidding
-      </h2>
-
+    <div className="card-flat space-y-4">
       {!account ? (
         <button
           onClick={handleConnect}
-          className="px-3 py-2 text-sm bg-(--color-accent) text-black rounded font-mono"
+          className="btn btn-primary"
+          data-testid="connect-wallet"
         >
-          connect wallet
+          connect wallet →
         </button>
       ) : (
         <p className="text-xs font-mono text-(--color-muted)">
-          {account.slice(0, 6)}…{account.slice(-4)}
-          {chainOk ? "" : " · wrong network (need Sepolia)"}
+          <span className="text-(--color-fg)">
+            {account.slice(0, 6)}…{account.slice(-4)}
+          </span>
+          {chainOk ? null : (
+            <span className="text-(--color-amber)"> · wrong network (sepolia)</span>
+          )}
           {usdcBalance !== null
             ? ` · ${formatUnits(usdcBalance, 6)} USDC`
             : ""}
-          {isOwner ? " · owner" : ""}
+          {isOwner ? (
+            <span className="ml-2 pill pill-warn">owner</span>
+          ) : null}
         </p>
       )}
 
@@ -373,28 +376,30 @@ export default function BidControls(props: Props) {
                 value={bidAmount}
                 onChange={(e) => setBidAmount(e.target.value)}
                 disabled={busy !== null}
-                className="px-2 py-1 text-sm font-mono bg-transparent border border-(--color-border) rounded w-24"
+                className="w-24"
+                data-testid="bid-amount"
               />
-              <span className="text-xs text-(--color-muted)">USDC</span>
+              <span className="tag">USDC</span>
               <button
                 onClick={onPlace}
                 disabled={busy !== null}
-                className="px-3 py-1 text-sm bg-(--color-accent) text-black rounded font-mono disabled:opacity-50"
+                className="btn btn-primary"
+                data-testid="place-bid"
               >
-                {myBid ? "top up" : "place bid"}
+                {myBid ? "top up →" : "place bid →"}
               </button>
               {myBid ? (
                 <button
                   onClick={onWithdraw}
                   disabled={busy !== null}
-                  className="px-3 py-1 text-sm border border-(--color-border) rounded font-mono disabled:opacity-50"
+                  className="btn"
                 >
                   withdraw {formatUnits(myBid.amount, 6)}
                 </button>
               ) : null}
             </div>
           ) : standingBids.length === 0 ? (
-            <p className="text-xs text-(--color-muted)">
+            <p className="text-xs text-(--color-muted) italic">
               no standing bids yet — wait for a bidder
             </p>
           ) : (
@@ -402,20 +407,20 @@ export default function BidControls(props: Props) {
               {standingBids.map((b) => (
                 <li
                   key={b.bidder}
-                  className="flex items-center gap-2 text-xs font-mono"
+                  className="flex items-center gap-2 text-xs font-mono py-1 border-b border-(--color-rule) last:border-0"
                 >
                   <span>
                     {b.bidder.slice(0, 6)}…{b.bidder.slice(-4)}
                   </span>
-                  <span className="text-(--color-muted)">
-                    bid ${formatUnits(b.amount, 6)}
+                  <span className="display-italic text-base text-(--color-accent)">
+                    ${formatUnits(b.amount, 6)}
                   </span>
                   <button
                     onClick={() => onAccept(b.bidder)}
                     disabled={busy !== null}
-                    className="ml-auto px-2 py-0.5 bg-(--color-accent) text-black rounded disabled:opacity-50"
+                    className="ml-auto btn btn-primary"
                   >
-                    accept
+                    accept →
                   </button>
                 </li>
               ))}
@@ -425,10 +430,13 @@ export default function BidControls(props: Props) {
       ) : null}
 
       {busy ? (
-        <p className="text-xs text-(--color-muted)">{busy}</p>
+        <p className="text-xs text-(--color-muted) italic">
+          <span className="caret" />
+          {busy}
+        </p>
       ) : null}
       {error ? (
-        <p className="text-xs text-red-500 break-words">{error}</p>
+        <p className="text-xs text-(--color-amber) break-words">{error}</p>
       ) : null}
       {lastTx ? (
         <p className="text-xs">
@@ -436,9 +444,9 @@ export default function BidControls(props: Props) {
             href={`https://sepolia.etherscan.io/tx/${lastTx}`}
             target="_blank"
             rel="noreferrer"
-            className="text-(--color-accent) underline"
+            className="link"
           >
-            tx ↗
+            tx →
           </a>
         </p>
       ) : null}

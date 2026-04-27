@@ -1,13 +1,16 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #0a0a0a;
-  --color-fg: #fafafa;
-  --color-accent: #00ff88;
-  --color-muted: #737373;
-  --color-card: #141414;
-  --color-border: #262626;
+  --color-bg: #050505;
+  --color-fg: #f7f5f0;
+  --color-accent: #c5ff3d;
+  --color-amber: #ffb547;
+  --color-muted: #6e6a64;
+  --color-card: #0c0c0c;
+  --color-border: #1f1d1a;
+  --color-rule: #2a2723;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: "Fraunces", "Times New Roman", Georgia, serif;
 }
 
 html,
@@ -15,5 +18,366 @@ body {
   background: var(--color-bg);
   color: var(--color-fg);
   font-family: var(--font-mono);
-  font-feature-settings: "ss01", "cv11";
+  font-feature-settings: "ss01", "cv11", "tnum", "zero";
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+/* Animated grain overlay — fixed, multiplicative texture for tactile depth. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.04  0 0 0 0.55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.55'/></svg>");
+  mix-blend-mode: overlay;
+  opacity: 0.35;
+  animation: grain-shift 6s steps(6) infinite;
+}
+
+@keyframes grain-shift {
+  0% { transform: translate(0, 0); }
+  10% { transform: translate(-3%, 1%); }
+  20% { transform: translate(2%, -3%); }
+  30% { transform: translate(-1%, 2%); }
+  40% { transform: translate(3%, 1%); }
+  50% { transform: translate(-2%, -2%); }
+  60% { transform: translate(1%, 3%); }
+  70% { transform: translate(-3%, -1%); }
+  80% { transform: translate(2%, 2%); }
+  100% { transform: translate(0, 0); }
+}
+
+/* Page contents above grain. */
+main, header, nav, section, article {
+  position: relative;
+  z-index: 1;
+}
+
+/* Display type — serif italic numerals look like a financial broadsheet. */
+.display {
+  font-family: var(--font-display);
+  font-feature-settings: "ss01", "cv01", "lnum", "ordn";
+  letter-spacing: -0.02em;
+}
+
+.display-italic {
+  font-family: var(--font-display);
+  font-style: italic;
+  letter-spacing: -0.01em;
+}
+
+/* Section marker — oversized number that anchors a band of content. */
+.section-marker {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(2.25rem, 5vw, 3.5rem);
+  line-height: 0.9;
+  color: var(--color-muted);
+  letter-spacing: -0.04em;
+}
+
+/* Hairline horizontal rule with optional caption. */
+.rule {
+  border: 0;
+  border-top: 1px solid var(--color-rule);
+  margin: 0;
+}
+
+.rule-thick {
+  border-top: 2px solid var(--color-fg);
+}
+
+/* Tag — small caps label used inline with data. */
+.tag {
+  font-size: 0.65rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+/* Stat cards lean austere; numbers do the heavy lifting. */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0;
+  border: 1px solid var(--color-rule);
+}
+
+.stat-cell {
+  padding: 1rem 1.25rem;
+  border-right: 1px solid var(--color-rule);
+  border-bottom: 1px solid var(--color-rule);
+  background: var(--color-card);
+}
+
+.stat-cell:last-child {
+  border-right: 0;
+}
+
+@media (max-width: 768px) {
+  .stat-cell {
+    border-right: 0;
+  }
+}
+
+.stat-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  margin-bottom: 0.4rem;
+}
+
+.stat-value {
+  font-family: var(--font-display);
+  font-size: 1.85rem;
+  line-height: 1;
+  font-feature-settings: "lnum", "tnum";
+  letter-spacing: -0.02em;
+}
+
+.stat-value-mono {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  line-height: 1;
+  font-weight: 500;
+}
+
+.stat-value-accent {
+  color: var(--color-accent);
+}
+
+.stat-value-amber {
+  color: var(--color-amber);
+}
+
+/* Card — elevated container with hairline border + hover lift. */
+.card {
+  background: var(--color-card);
+  border: 1px solid var(--color-rule);
+  padding: 1.25rem 1.5rem;
+  transition:
+    border-color 220ms ease,
+    transform 220ms ease;
+}
+
+.card:hover {
+  border-color: var(--color-fg);
+}
+
+.card-flat {
+  background: transparent;
+  border: 1px solid var(--color-rule);
+  padding: 1.25rem 1.5rem;
+}
+
+/* Link with reveal-underline hover. */
+.link {
+  color: var(--color-accent);
+  text-decoration: none;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-size: 0% 1px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  transition: background-size 200ms ease;
+}
+
+.link:hover {
+  background-size: 100% 1px;
+}
+
+.link-amber {
+  color: var(--color-amber);
+}
+
+/* Live caret — blinks beside live status indicators. */
+.caret {
+  display: inline-block;
+  width: 0.55ch;
+  height: 1em;
+  background: var(--color-accent);
+  vertical-align: -0.18em;
+  margin-left: 0.25em;
+  animation: caret-blink 1.05s steps(2) infinite;
+}
+
+@keyframes caret-blink {
+  0%, 50% { opacity: 1; }
+  50.01%, 100% { opacity: 0; }
+}
+
+/* Hero — staggered reveal on first paint. */
+.reveal {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: reveal 700ms cubic-bezier(0.21, 0.81, 0.32, 1) forwards;
+}
+
+.reveal-1 { animation-delay: 60ms; }
+.reveal-2 { animation-delay: 160ms; }
+.reveal-3 { animation-delay: 260ms; }
+.reveal-4 { animation-delay: 360ms; }
+.reveal-5 { animation-delay: 460ms; }
+.reveal-6 { animation-delay: 560ms; }
+
+@keyframes reveal {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Pill — compact status indicator. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.18rem 0.55rem;
+  border: 1px solid var(--color-rule);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pill-live {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.pill-idle {
+  color: var(--color-muted);
+}
+
+.pill-warn {
+  border-color: var(--color-amber);
+  color: var(--color-amber);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+}
+
+.dot-pulse {
+  animation: dot-pulse 1.6s ease-in-out infinite;
+  box-shadow: 0 0 0 0 currentColor;
+}
+
+@keyframes dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 currentColor; }
+  50% { box-shadow: 0 0 0 6px transparent; }
+}
+
+/* Tabular row — data list rendered as a half-magazine, half-terminal rhythm. */
+.row {
+  display: grid;
+  grid-template-columns: 8ch 1fr auto;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-rule);
+  font-feature-settings: "tnum";
+}
+
+.row:last-child { border-bottom: 0; }
+
+/* Buttons — recessed terminal feel. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--color-rule);
+  background: transparent;
+  color: var(--color-fg);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  cursor: pointer;
+  transition: all 180ms ease;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #050505;
+  font-weight: 600;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: transparent;
+  color: var(--color-accent);
+}
+
+.btn-danger {
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #ff6b6b;
+  color: #050505;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+input[type="text"],
+input[type="number"] {
+  background: transparent;
+  border: 1px solid var(--color-rule);
+  color: var(--color-fg);
+  padding: 0.45rem 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 180ms ease;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus {
+  border-color: var(--color-accent);
+}
+
+/* Scrollbar treatment. */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track { background: var(--color-bg); }
+::-webkit-scrollbar-thumb {
+  background: var(--color-rule);
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
+
+/* Selection. */
+::selection {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+/* Marquee strip — for the dashboard ticker. */
+.ticker {
+  display: flex;
+  gap: 3rem;
+  white-space: nowrap;
+  animation: ticker-scroll 40s linear infinite;
+  width: max-content;
+}
+
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
 }

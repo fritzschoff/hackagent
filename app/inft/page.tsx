@@ -3,6 +3,7 @@ import { readInft } from "@/lib/inft";
 import { AGENT_ENS } from "@/lib/ens";
 import { readStandingBids, readBidHistory, formatUsdc } from "@/lib/bids";
 import BidControls from "./bid-controls";
+import SiteNav from "@/components/site-nav";
 
 export const revalidate = 30;
 
@@ -40,16 +41,20 @@ export default async function InftPage() {
     : [[], []];
 
   return (
-    <main className="mx-auto max-w-4xl p-8 space-y-10">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">
+    <main className="mx-auto max-w-5xl px-6 md:px-10 pb-24">
+      <SiteNav active="inft" />
+      <header className="pt-6 pb-10 border-b-2 border-(--color-fg) reveal reveal-1">
+        <p className="tag mb-2">erc-7857 inft · sepolia</p>
+        <h1 className="display text-[clamp(2.25rem,6vw,4rem)] leading-[0.95] tracking-tight">
           {AGENT_ENS}{" "}
-          <span className="text-(--color-muted)">/ inft</span>
+          <span className="display-italic font-light text-(--color-muted)">
+            / inft
+          </span>
         </h1>
-        <p className="text-sm text-(--color-muted)">
-          ERC-7857 INFT — the agent itself, transferable. ERC-8004 reputation
-          stays attached to <code>agentId</code>; payout wallet is cleared on
-          transfer per EIP-8004 §4.4 anti-laundering.
+        <p className="mt-3 text-sm text-(--color-muted) max-w-2xl">
+          The agent itself, transferable. ERC-8004 reputation stays attached
+          to <code>agentId</code>; payout wallet is cleared on transfer per
+          EIP-8004 §4.4 anti-laundering.
         </p>
       </header>
 
@@ -78,44 +83,52 @@ export default async function InftPage() {
           </ol>
         </section>
       ) : (
-        <section className="space-y-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Stat label="token id" value={`#${inft.tokenId}`} />
-            <Stat label="agent id" value={`#${inft.agentId}`} />
-            <Stat
+        <section className="mt-10 space-y-12 reveal reveal-2">
+          <div className="stat-grid">
+            <Cell label="token id" value={`#${inft.tokenId}`} mono />
+            <Cell label="agent id" value={`#${inft.agentId}`} mono />
+            <Cell
               label="owner"
               value={shortAddr(inft.owner)}
+              mono
               href={`${SEPOLIA_ETHERSCAN}/address/${inft.owner}`}
             />
-            <Stat
-              label="payout"
+            <Cell
+              label="payout wallet"
               value={
                 inft.walletCleared
                   ? "cleared"
                   : shortAddr(inft.agentWallet ?? "")
               }
+              mono
               accent={!inft.walletCleared}
               danger={inft.walletCleared}
             />
           </div>
 
-          <div className="border border-(--color-border) rounded-lg p-4 space-y-3">
-            <h2 className="text-xs uppercase tracking-widest text-(--color-muted)">
-              encrypted memory (0G Storage)
-            </h2>
-            <dl className="grid grid-cols-1 gap-2 text-xs font-mono">
-              <Row label="merkle root" value={inft.encryptedMemoryRoot} />
-              <Row label="og:// uri" value={inft.encryptedMemoryUri} />
-              <Row label="tokenURI" value={inft.tokenUri} />
-            </dl>
+          <div>
+            <div className="flex items-baseline gap-5 mb-5">
+              <span className="section-marker">§01</span>
+              <div>
+                <h2 className="display text-2xl">encrypted memory</h2>
+                <p className="tag mt-1">0G Storage · turbo testnet</p>
+              </div>
+            </div>
+            <div className="card-flat">
+              <dl className="grid grid-cols-1 gap-3 text-xs font-mono">
+                <Row label="merkle root" value={inft.encryptedMemoryRoot} />
+                <Row label="og:// uri" value={inft.encryptedMemoryUri} />
+                <Row label="tokenURI" value={inft.tokenUri} />
+              </dl>
+            </div>
           </div>
 
           {inft.walletCleared ? (
-            <div className="border border-(--color-accent) rounded-lg p-4 text-xs space-y-2">
-              <p className="font-semibold text-(--color-accent)">
+            <div className="card-flat border-(--color-amber)! p-5 space-y-2">
+              <p className="display-italic text-(--color-amber) text-lg">
                 payout wallet cleared
               </p>
-              <p className="text-(--color-muted)">
+              <p className="text-xs text-(--color-muted) max-w-2xl leading-relaxed">
                 The agent transferred to a new owner. The next x402 settlement
                 will revert until the new owner submits an EIP-712-signed{" "}
                 <code>setAgentWallet(agentId, newWallet, deadline, sig)</code>{" "}
@@ -125,91 +138,110 @@ export default async function InftPage() {
             </div>
           ) : null}
 
-          {bidsAddress && usdcAddress && inftAddress ? (
-            <BidControls
-              tokenId={tokenId.toString()}
-              bidsAddress={bidsAddress}
-              inftAddress={inftAddress}
-              usdcAddress={usdcAddress}
-              inftOwner={inft.owner}
-              standingBids={standingBids.map((b) => ({
-                bidder: b.bidder,
-                amount: b.amount.toString(),
-              }))}
-            />
-          ) : (
-            <div className="border border-(--color-border) rounded-lg p-4 text-xs text-(--color-muted)">
-              bidding pool not deployed yet — see deployment instructions above
+          <div>
+            <div className="flex items-baseline gap-5 mb-5">
+              <span className="section-marker">§02</span>
+              <div>
+                <h2 className="display text-2xl">bidding</h2>
+                <p className="tag mt-1">
+                  opensea-style standing offers · sepolia USDC
+                </p>
+              </div>
             </div>
-          )}
+            {bidsAddress && usdcAddress && inftAddress ? (
+              <BidControls
+                tokenId={tokenId.toString()}
+                bidsAddress={bidsAddress}
+                inftAddress={inftAddress}
+                usdcAddress={usdcAddress}
+                inftOwner={inft.owner}
+                standingBids={standingBids.map((b) => ({
+                  bidder: b.bidder,
+                  amount: b.amount.toString(),
+                }))}
+              />
+            ) : (
+              <div className="card-flat text-xs text-(--color-muted)">
+                bidding pool not deployed yet — see deployment instructions above
+              </div>
+            )}
+          </div>
 
           {bidHistory.length > 0 ? (
-            <div className="border border-(--color-border) rounded-lg p-4 space-y-2">
-              <h2 className="text-xs uppercase tracking-widest text-(--color-muted)">
-                bid history
-              </h2>
-              <ul className="text-xs font-mono space-y-1">
-                {bidHistory.map((e) => (
-                  <li
-                    key={e.txHash}
-                    className="flex gap-2 items-center text-(--color-muted)"
-                  >
-                    <span
-                      className={
-                        e.kind === "accepted"
-                          ? "text-(--color-accent)"
-                          : e.kind === "withdrawn"
-                            ? ""
-                            : "text-(--color-accent)"
-                      }
+            <div>
+              <div className="flex items-baseline gap-5 mb-5">
+                <span className="section-marker">§03</span>
+                <div>
+                  <h2 className="display text-2xl">bid history</h2>
+                  <p className="tag mt-1">on-chain audit trail</p>
+                </div>
+              </div>
+              <div className="card-flat p-0">
+                <ul>
+                  {bidHistory.map((e) => (
+                    <li
+                      key={e.txHash}
+                      className="flex items-baseline gap-3 px-5 py-3 border-b border-(--color-rule) last:border-0 font-mono text-xs"
                     >
-                      [{e.kind}]
-                    </span>
-                    <span>
-                      {e.kind === "accepted"
-                        ? `${shortAddr(e.bidder)} ← ${shortAddr(e.seller)}`
-                        : shortAddr(e.bidder)}
-                    </span>
-                    <span>{formatUsdc(e.amount)}</span>
-                    <a
-                      href={`${SEPOLIA_ETHERSCAN}/tx/${e.txHash}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="ml-auto text-(--color-accent) underline"
-                    >
-                      tx ↗
-                    </a>
-                  </li>
-                ))}
-              </ul>
+                      <span
+                        className={
+                          e.kind === "accepted"
+                            ? "text-(--color-accent)"
+                            : e.kind === "withdrawn"
+                              ? "text-(--color-amber)"
+                              : "text-(--color-accent)"
+                        }
+                      >
+                        [{e.kind}]
+                      </span>
+                      <span className="text-(--color-muted)">
+                        {e.kind === "accepted"
+                          ? `${shortAddr(e.bidder)} ← ${shortAddr(e.seller)}`
+                          : shortAddr(e.bidder)}
+                      </span>
+                      <span className="display-italic text-base text-(--color-fg)">
+                        {formatUsdc(e.amount)}
+                      </span>
+                      <a
+                        href={`${SEPOLIA_ETHERSCAN}/tx/${e.txHash}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="ml-auto link"
+                      >
+                        tx →
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           ) : null}
 
-          <div className="text-xs text-(--color-muted) space-x-3">
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs">
             <a
               href={`${SEPOLIA_ETHERSCAN}/address/${inftAddress}`}
               target="_blank"
               rel="noreferrer"
-              className="text-(--color-accent) underline"
+              className="link"
             >
-              INFT contract ↗
+              INFT contract →
             </a>
             <a
               href={`${SEPOLIA_ETHERSCAN}/address/${registryV2}`}
               target="_blank"
               rel="noreferrer"
-              className="text-(--color-accent) underline"
+              className="link"
             >
-              IdentityRegistryV2 ↗
+              IdentityRegistryV2 →
             </a>
             {bidsAddress ? (
               <a
                 href={`${SEPOLIA_ETHERSCAN}/address/${bidsAddress}`}
                 target="_blank"
                 rel="noreferrer"
-                className="text-(--color-accent) underline"
+                className="link"
               >
-                AgentBids ↗
+                AgentBids →
               </a>
             ) : null}
           </div>
@@ -219,42 +251,48 @@ export default async function InftPage() {
   );
 }
 
-function Stat({
+function Cell({
   label,
   value,
   accent,
+  amber,
   danger,
+  mono,
   href,
 }: {
   label: string;
   value: string;
   accent?: boolean;
+  amber?: boolean;
   danger?: boolean;
+  mono?: boolean;
   href?: string;
 }) {
-  const className = `text-base font-mono ${
+  const valueClass = `${
+    mono ? "stat-value-mono" : "stat-value"
+  } ${
     accent
-      ? "text-(--color-accent)"
-      : danger
-        ? "text-red-500"
-        : ""
+      ? "stat-value-accent"
+      : amber
+        ? "stat-value-amber"
+        : danger
+          ? "text-(--color-amber)"
+          : ""
   }`;
   return (
-    <div className="border border-(--color-border) rounded-lg p-3">
-      <div className="text-xs uppercase tracking-widest text-(--color-muted)">
-        {label}
-      </div>
+    <div className="stat-cell">
+      <div className="stat-label">{label}</div>
       {href ? (
         <a
           href={href}
           target="_blank"
           rel="noreferrer"
-          className={`${className} underline`}
+          className={`${valueClass} link`}
         >
           {value}
         </a>
       ) : (
-        <div className={className}>{value}</div>
+        <div className={valueClass}>{value}</div>
       )}
     </div>
   );
@@ -262,9 +300,9 @@ function Stat({
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex gap-3">
-      <dt className="text-(--color-muted) w-24 shrink-0">{label}</dt>
-      <dd className="break-all">{value}</dd>
+    <div className="flex gap-4 items-baseline">
+      <dt className="tag w-32 shrink-0">{label}</dt>
+      <dd className="break-all text-(--color-fg)">{value}</dd>
     </div>
   );
 }
