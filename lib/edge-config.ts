@@ -17,6 +17,14 @@ export type AddressMap = {
   sepoliaUsdcAddress?: `0x${string}`;
 };
 
+export type BaseSepoliaAddressMap = {
+  agentShares?: `0x${string}`;
+  revenueSplitter?: `0x${string}`;
+  sharesSale?: `0x${string}`;
+  pricePerShareUsdc?: number;
+  usdc?: `0x${string}`;
+};
+
 const STUB: AddressMap = {
   identityRegistry: zeroAddress,
   reputationRegistry: zeroAddress,
@@ -32,6 +40,16 @@ export async function getSepoliaAddresses(): Promise<AddressMap> {
     return v ?? STUB;
   } catch {
     return STUB;
+  }
+}
+
+export async function getBaseSepoliaAddresses(): Promise<BaseSepoliaAddressMap> {
+  if (!process.env.EDGE_CONFIG) return {};
+  try {
+    const v = await get<BaseSepoliaAddressMap>("addresses_base_sepolia");
+    return v ?? {};
+  } catch {
+    return {};
   }
 }
 

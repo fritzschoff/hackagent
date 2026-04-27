@@ -120,6 +120,12 @@ export default async function DashboardPage() {
           >
             inft viewer ↗
           </a>
+          <a
+            href="/ipo"
+            className="text-(--color-accent) underline"
+          >
+            ipo ↗
+          </a>
         </p>
       </header>
 
