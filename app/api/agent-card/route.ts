@@ -81,6 +81,14 @@ export async function GET(req: Request) {
         price: t.price,
       })),
     },
+    paymentProtocols: {
+      x402: { supported: true, chain: "eip155:84532", token: "USDC" },
+      // Stripe MPP support is documented in the roadmap §8; integration
+      // is gated on a Stripe acquirer account + Tempo testnet enrollment
+      // we don't have in this build. Schema field is exposed so MPP-aware
+      // clients can detect agreed support cleanly.
+      mpp: { supported: false, hint: "configure STRIPE_MPP_SECRET to enable" },
+    },
     x402Support: true,
     active: true,
     registrations:

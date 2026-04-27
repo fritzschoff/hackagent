@@ -367,9 +367,17 @@ This is **the** demo loop.
 
 ---
 
-## Phase 8 — Stripe MMP (agent payment protocol, parallel to x402)
+## Phase 8 — Stripe MPP (agent payment protocol, parallel to x402)
 
-**Clarification (2026-04-27):** MMP is Stripe's AI-agent payment protocol — a per-call HTTP-401-style challenge similar to x402 but settled through Stripe rails (likely USDC on Tempo, Stripe's L1) instead of x402's Base USDC. The KeeperHub feedback bounty / Stripe AI track explicitly looks for MMP-served endpoints.
+**Status (2026-04-27): NOT SHIPPED.** Schema-only — `agent-card.paymentProtocols.mpp.supported: false` is exposed so MPP-aware clients can detect support cleanly, but the wire integration is gated on a Stripe acquirer account + Tempo testnet enrollment we don't have in this build.
+
+**Verified facts (Stripe AI search, 2026-04-27):**
+- Stripe MPP launched **March 18, 2026** with **Tempo** (Stripe's L1).
+- Session-based streaming payments: agent pre-authorizes a spending limit, then streams granular micropayments inside the session.
+- Stripe also integrated x402 on Base in February 2026 — so we have a path to MPP via `stripe` SDK + `@stripe/agent-toolkit` once we configure an account.
+- No standalone `@stripe/mpp` package surfaced in search; integration is via the standard `stripe` SDK + dashboard + PaymentIntents-style session resources.
+
+**Strategic value:** judges can pay our agent via *either* x402 *or* MPP — same endpoint, two payment rails. This is the cleanest "agent-protocol-agnostic" demo possible.
 
 **Strategic value:** judges can pay our agent via *either* x402 *or* MMP — same endpoint, two payment rails. This is the cleanest "agent-protocol-agnostic" demo possible.
 
