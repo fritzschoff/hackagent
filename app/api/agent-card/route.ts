@@ -120,6 +120,14 @@ export async function GET(req: Request) {
           model: "fractional revenue-share ERC-20 backed by x402 settlements",
         }
       : null,
+    credit: addresses.reputationCreditAddress
+      ? {
+          contract: `eip155:11155111:${addresses.reputationCreditAddress}`,
+          viewer: `${baseUrl}/credit`,
+          model:
+            "uncollateralized USDC borrowing against ERC-8004 feedbackCount",
+        }
+      : null,
     upstreamAgents: pricewatchAddr
       ? [
           {

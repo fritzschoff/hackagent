@@ -27,6 +27,7 @@ type AddressMap = {
   inftTokenId?: number;
   agentBidsAddress?: `0x${string}`;
   sepoliaUsdcAddress?: `0x${string}`;
+  reputationCreditAddress?: `0x${string}`;
 };
 
 function readVercelToken(): string {
@@ -168,6 +169,20 @@ async function main(): Promise<void> {
     };
     value.agentBidsAddress = bidsDep.agentBids;
     value.sepoliaUsdcAddress = bidsDep.usdc;
+  }
+
+  // Phase 10 (reputation credit pool).
+  const creditDeployPath = join(
+    process.cwd(),
+    "contracts",
+    "deployments",
+    `${network}-credit.json`,
+  );
+  if (existsSync(creditDeployPath)) {
+    const creditDep = JSON.parse(readFileSync(creditDeployPath, "utf8")) as {
+      reputationCredit: `0x${string}`;
+    };
+    value.reputationCreditAddress = creditDep.reputationCredit;
   }
   const id = readEdgeConfigId();
   const token = readVercelToken();
