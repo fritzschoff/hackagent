@@ -4,6 +4,8 @@ import {
 } from "@/lib/edge-config";
 import { AGENT_ENS, resolveAgentEns } from "@/lib/ens";
 import { tryLoadAccount } from "@/lib/wallets";
+import { getQuotePrice, PRICE_TIERS } from "@/lib/pricing";
+import { zeroAddress } from "viem";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +19,16 @@ export async function GET(req: Request) {
     getBaseSepoliaAddresses(),
     resolveAgentEns(),
   ]);
+
+  const repAddr = addresses.reputationRegistry;
+  const agentIdBig = BigInt(addresses.agentId);
+  const pricing =
+    repAddr !== zeroAddress && agentIdBig > 0n
+      ? await getQuotePrice({
+          reputationRegistry: repAddr,
+          agentId: agentIdBig,
+        })
+      : { price: "$0.10" as const, feedbackCount: 0 };
   const agent = tryLoadAccount("agent");
   const pricewatchAccount = tryLoadAccount("pricewatch");
   const agentAddr = agent?.address ?? ens.address ?? addresses.agentEOA;
@@ -57,6 +69,16 @@ export async function GET(req: Request) {
         value: ens.registrationRecord,
       },
       lastSeenAt: ens.lastSeenAt,
+    },
+    pricing: {
+      scheme: "reputation-graduated",
+      currency: "USDC",
+      currentPrice: pricing.price,
+      currentFeedbackCount: pricing.feedbackCount,
+      tiers: PRICE_TIERS.map((t) => ({
+        minFeedbackCount: t.minFeedback,
+        price: t.price,
+      })),
     },
     x402Support: true,
     active: true,
