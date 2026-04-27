@@ -197,7 +197,7 @@ export async function postFeedback(args: {
   decimals: number;
   tag: string;
   detailUri?: string;
-  clientWallet: "client1" | "client2" | "client3";
+  clientWallet: WalletId;
 }): Promise<{ txHash: Hex } | null> {
   const { reputationRegistry } = await getSepoliaAddresses();
   if (reputationRegistry === "0x0000000000000000000000000000000000000000") {

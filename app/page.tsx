@@ -2,11 +2,13 @@ import {
   getRecentJobs,
   getEarningsCents,
   getRecentKeeperhubRuns,
+  getRecentPricewatchCalls,
+  getPricewatchEarningsCents,
 } from "@/lib/redis";
 import { getCronStatuses } from "@/lib/cron-auth";
 import { readRecentFeedback, readRecentValidations } from "@/lib/erc8004";
 import { getSepoliaAddresses } from "@/lib/edge-config";
-import { AGENT_ENS } from "@/lib/ens";
+import { AGENT_ENS, resolveAgentEns } from "@/lib/ens";
 
 export const revalidate = 30;
 
@@ -14,6 +16,17 @@ const AGENT_EOA = "0x7a83678e330a0C565e6272498FFDF421621820A3";
 const SEPOLIA_ETHERSCAN = "https://sepolia.etherscan.io";
 const BASE_SEPOLIA_BASESCAN = "https://sepolia.basescan.org";
 const ENS_APP = `https://sepolia.app.ens.domains/${AGENT_ENS}`;
+
+function relativeAge(iso: string | null): string | null {
+  if (!iso) return null;
+  const ts = Date.parse(iso);
+  if (!Number.isFinite(ts)) return null;
+  const sec = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (sec < 60) return `${sec}s ago`;
+  if (sec < 3600) return `${Math.round(sec / 60)}m ago`;
+  if (sec < 86400) return `${Math.round(sec / 3600)}h ago`;
+  return `${Math.round(sec / 86400)}d ago`;
+}
 
 export default async function DashboardPage() {
   const [
@@ -24,6 +37,9 @@ export default async function DashboardPage() {
     validations,
     addresses,
     khRuns,
+    ens,
+    pricewatchCalls,
+    pricewatchEarningsCents,
   ] = await Promise.all([
     getRecentJobs(50),
     getEarningsCents(),
@@ -32,12 +48,18 @@ export default async function DashboardPage() {
     readRecentValidations(10),
     getSepoliaAddresses(),
     getRecentKeeperhubRuns(10),
+    resolveAgentEns(),
+    getRecentPricewatchCalls(10),
+    getPricewatchEarningsCents(),
   ]);
 
   const distinctClients = new Set(feedback.map((f) => f.client.toLowerCase()))
     .size;
   const live =
     jobs.length > 0 && feedback.length > 0 && addresses.agentId > 0;
+  const ensResolved = ens.address !== null;
+  const heartbeatAge = relativeAge(ens.lastSeenAt);
+  const pricewatchActive = pricewatchCalls.length > 0;
 
   return (
     <main className="mx-auto max-w-5xl p-8 space-y-12">
@@ -48,7 +70,20 @@ export default async function DashboardPage() {
         <p className="text-(--color-muted) text-sm">
           autonomous on-chain agent · $0.10 / quote · base sepolia
         </p>
-        <p className="text-xs flex flex-wrap gap-3">
+        <p className="text-xs flex flex-wrap gap-3 items-center">
+          <span
+            className={
+              ensResolved
+                ? "text-(--color-accent)"
+                : "text-(--color-muted)"
+            }
+            title={
+              ens.address ?? "ENS not resolved (check SEPOLIA_RPC_URL)"
+            }
+          >
+            ens {ensResolved ? "✓" : "·"}{" "}
+            {heartbeatAge ? `(beat ${heartbeatAge})` : "(no heartbeat yet)"}
+          </span>
           <a
             href={ENS_APP}
             target="_blank"
@@ -79,6 +114,12 @@ export default async function DashboardPage() {
           >
             agent-card ↗
           </a>
+          <a
+            href="/inft"
+            className="text-(--color-accent) underline"
+          >
+            inft viewer ↗
+          </a>
         </p>
       </header>
 
@@ -93,6 +134,56 @@ export default async function DashboardPage() {
         <Stat label="clients" value={String(distinctClients)} />
         <Stat label="kh runs" value={String(khRuns.length)} />
         <Stat label="status" value={live ? "live" : "bootstrapping"} />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold uppercase tracking-widest text-(--color-muted)">
+          upstream agent — pricewatch.agentlab.eth
+        </h2>
+        <div className="border border-(--color-border) rounded-lg p-4 space-y-3">
+          <p className="text-xs text-(--color-muted)">
+            tradewise pays this sidecar agent <code>$0.02</code> per quote in
+            x402 USDC for token metadata. each call is two-hop on chain:
+            client → tradewise → pricewatch.
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Stat
+              label="pw earnings"
+              value={`${(pricewatchEarningsCents / 100).toFixed(2)} USDC`}
+              accent
+            />
+            <Stat label="pw calls" value={String(pricewatchCalls.length)} />
+            <Stat
+              label="pw status"
+              value={pricewatchActive ? "active" : "idle"}
+            />
+            <Stat
+              label="pw agentId"
+              value={
+                addresses.pricewatchAgentId
+                  ? String(addresses.pricewatchAgentId)
+                  : "—"
+              }
+            />
+          </div>
+          {pricewatchCalls.length > 0 ? (
+            <ul className="text-xs space-y-1 font-mono">
+              {pricewatchCalls.slice(0, 5).map((c) => (
+                <li key={c.paymentTx} className="text-(--color-muted)">
+                  <span>{c.symbol ?? "?"} </span>
+                  <a
+                    href={`${BASE_SEPOLIA_BASESCAN}/tx/${c.paymentTx}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-(--color-accent) underline"
+                  >
+                    {c.paymentTx.slice(0, 10)}…
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
       </section>
 
       <section className="space-y-3">

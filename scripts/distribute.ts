@@ -16,7 +16,13 @@ import { BASE_SEPOLIA_USDC } from "../lib/x402";
 
 type ChainKey = "sepolia" | "base-sepolia";
 
-type Role = "agent" | "client1" | "client2" | "client3" | "validator";
+type Role =
+  | "agent"
+  | "client1"
+  | "client2"
+  | "client3"
+  | "validator"
+  | "pricewatch";
 
 const ENV_KEY: Record<Role, string> = {
   agent: "AGENT_PK",
@@ -24,6 +30,7 @@ const ENV_KEY: Record<Role, string> = {
   client2: "CLIENT2_PK",
   client3: "CLIENT3_PK",
   validator: "VALIDATOR_PK",
+  pricewatch: "PRICEWATCH_PK",
 };
 
 function pkOrThrow(name: string): Hex {
@@ -118,8 +125,19 @@ async function main() {
   const usdcAmount = parseUnits(parseArg("usdc") ?? "5", 6);
 
   const recipientsByChain: Record<ChainKey, Role[]> = {
-    sepolia: ["agent", "client1", "client2", "client3", "validator"],
-    "base-sepolia": ["client1", "client2", "client3"],
+    sepolia: [
+      "agent",
+      "client1",
+      "client2",
+      "client3",
+      "validator",
+      "pricewatch",
+    ],
+    // Agent receives Base Sepolia USDC for two reasons: (1) clients pay it
+    // x402 (so it just accumulates), (2) it pays pricewatch x402 in the
+    // two-hop economy, which requires a starting USDC balance before the
+    // first inbound payment lands.
+    "base-sepolia": ["client1", "client2", "client3", "agent"],
   };
 
   const recipients = recipientsByChain[chainArg]

@@ -1,6 +1,13 @@
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
-const ROLES = ["agent", "client1", "client2", "client3", "validator"] as const;
+const ROLES = [
+  "agent",
+  "client1",
+  "client2",
+  "client3",
+  "validator",
+  "pricewatch",
+] as const;
 type Role = (typeof ROLES)[number];
 
 function generateRole(role: Role) {
@@ -34,14 +41,21 @@ for (const w of wallets) {
 }
 lines.push("");
 lines.push("Base Sepolia ETH (gas for x402 settlements):");
-for (const w of wallets.filter((w) => w.role.startsWith("client"))) {
+for (const w of wallets.filter((w) =>
+  w.role.startsWith("client") || w.role === "agent",
+)) {
   lines.push(`  ${w.role.padEnd(10)} ${w.address}  https://www.alchemy.com/faucets/base-sepolia`);
 }
 lines.push("");
 lines.push("Base Sepolia USDC (the actual payment token):");
-for (const w of wallets.filter((w) => w.role.startsWith("client"))) {
+for (const w of wallets.filter((w) =>
+  w.role.startsWith("client") || w.role === "agent",
+)) {
   lines.push(`  ${w.role.padEnd(10)} ${w.address}  https://faucet.circle.com/`);
 }
+lines.push(
+  "  (agent needs Base Sepolia USDC to pay pricewatch via x402 in the two-hop economy demo)",
+);
 lines.push("");
 lines.push("0G Galileo (for 0G Storage + Compute in P3):");
 lines.push(`  agent      ${wallets[0]?.address}  https://faucet.0g.ai/`);
