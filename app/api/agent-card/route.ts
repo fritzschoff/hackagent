@@ -137,6 +137,14 @@ export async function GET(req: Request) {
             "per-job slashable USDC bond — validator score < threshold triggers slash",
         }
       : null,
+    merger: addresses.agentMergerAddress
+      ? {
+          contract: `eip155:11155111:${addresses.agentMergerAddress}`,
+          viewer: `${baseUrl}/merger`,
+          model:
+            "agent M&A — two ERC-7857 INFTs combine, lineage + summed reputation oracle",
+        }
+      : null,
     upstreamAgents: pricewatchAddr
       ? [
           {

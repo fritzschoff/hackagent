@@ -1,0 +1,273 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "identityRegistry",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "reputationRegistry",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "inft",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "IDENTITY",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IIdentityRegistryView"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "INFT",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IERC721"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "REPUTATION",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IReputationRegistryView"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "effectiveFeedbackCount",
+    "inputs": [
+      {
+        "name": "agentId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getMerger",
+    "inputs": [
+      {
+        "name": "mergedAgentId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct AgentMerger.Merger",
+        "components": [
+          {
+            "name": "mergedAgentId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "sourceAgentId1",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "sourceAgentId2",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "sourceTokenId1",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "sourceTokenId2",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "sealedMemoryRoot",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "mergedAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "recordedBy",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "mergerCount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "mergerIndexOfAgent",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "recordMerge",
+    "inputs": [
+      {
+        "name": "mergedAgentId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "sourceAgentId1",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "sourceTokenId1",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "sourceAgentId2",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "sourceTokenId2",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "sealedMemoryRoot",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "mergerIdx",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "AgentsMerged",
+    "inputs": [
+      {
+        "name": "mergerIndex",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "mergedAgentId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "sourceAgentId1",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "sourceAgentId2",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "sourceTokenId1",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "sourceTokenId2",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "sealedMemoryRoot",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "recordedBy",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  }
+]

@@ -29,6 +29,7 @@ type AddressMap = {
   sepoliaUsdcAddress?: `0x${string}`;
   reputationCreditAddress?: `0x${string}`;
   slaBondAddress?: `0x${string}`;
+  agentMergerAddress?: `0x${string}`;
 };
 
 function readVercelToken(): string {
@@ -198,6 +199,20 @@ async function main(): Promise<void> {
       slaBond: `0x${string}`;
     };
     value.slaBondAddress = slaDep.slaBond;
+  }
+
+  // Phase 12 (agent merger).
+  const mergerDeployPath = join(
+    process.cwd(),
+    "contracts",
+    "deployments",
+    `${network}-merger.json`,
+  );
+  if (existsSync(mergerDeployPath)) {
+    const mergerDep = JSON.parse(readFileSync(mergerDeployPath, "utf8")) as {
+      agentMerger: `0x${string}`;
+    };
+    value.agentMergerAddress = mergerDep.agentMerger;
   }
   const id = readEdgeConfigId();
   const token = readVercelToken();
