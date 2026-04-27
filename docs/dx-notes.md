@@ -108,6 +108,16 @@ collected here as concrete signal for whichever team finds them useful.
   editor, (2) show the name in the list view (not just the id),
   (3) one click copy button next to the workflow id.
 
+- **You cannot type into the manual ABI text area.** Pasting a full
+  ABI works, but typing or editing inline is impossible because the
+  editor auto saves on every keystroke and the input loses focus mid
+  word, so you get cut off after one or two characters and have to
+  click back into the field again. We ended up doing all ABI edits in
+  a separate text editor and pasting the whole thing in one shot.
+  Concrete ask: debounce the auto save (500ms is plenty) instead of
+  firing on every keystroke, so the field stays focused while the
+  user types.
+
 ### Score
 **6/10 for hackathon use, 9/10 for production.** The product is
 genuinely strong — what hurts the score is two-and-a-half hours lost
