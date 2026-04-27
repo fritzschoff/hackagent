@@ -5,10 +5,12 @@
   --color-fg: #f7f5f0;
   --color-accent: #c5ff3d;
   --color-amber: #ffb547;
-  --color-muted: #6e6a64;
-  --color-card: #0c0c0c;
-  --color-border: #1f1d1a;
-  --color-rule: #2a2723;
+  --color-danger: #ff6b6b;
+  --color-muted: #b6b1a6;
+  --color-muted-soft: #8c877d;
+  --color-card: #0e0e0d;
+  --color-border: #34302a;
+  --color-rule: #3a3631;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-display: "Fraunces", "Times New Roman", Georgia, serif;
 }
@@ -95,7 +97,25 @@ main, header, nav, section, article {
   font-size: 0.65rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--color-muted);
+  color: var(--color-muted-soft);
+}
+
+/* Network guard banner — prominent action callout. */
+.net-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-amber);
+  background: color-mix(in oklab, var(--color-amber) 10%, transparent);
+  color: var(--color-amber);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+
+.net-banner-text {
+  flex: 1 1 auto;
+  color: var(--color-fg);
 }
 
 /* Stat cards lean austere; numbers do the heavy lifting. */

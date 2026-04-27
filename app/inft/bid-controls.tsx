@@ -13,6 +13,7 @@ import {
 } from "viem";
 import { sepolia } from "viem/chains";
 import AgentBidsAbi from "@/lib/abis/AgentBids.json";
+import NetworkBanner from "@/components/network-banner";
 
 const ERC20_ABI = [
   {
@@ -199,6 +200,20 @@ export default function BidControls(props: Props) {
     }
   }, [refreshBalance]);
 
+  const requestSwitch = useCallback(async () => {
+    if (!window.ethereum) return;
+    setError(null);
+    try {
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: SEPOLIA_HEX_ID }],
+      });
+      setChainOk(true);
+    } catch (err) {
+      setError(extractError(err));
+    }
+  }, []);
+
   const ensureAllowance = useCallback(
     async (
       walletClient: ReturnType<typeof createWalletClient>,
@@ -351,21 +366,29 @@ export default function BidControls(props: Props) {
           connect wallet →
         </button>
       ) : (
-        <p className="text-xs font-mono text-(--color-muted)">
+        <p className="text-xs font-mono">
           <span className="text-(--color-fg)">
             {account.slice(0, 6)}…{account.slice(-4)}
           </span>
-          {chainOk ? null : (
-            <span className="text-(--color-amber)"> · wrong network (sepolia)</span>
-          )}
-          {usdcBalance !== null
-            ? ` · ${formatUnits(usdcBalance, 6)} USDC`
-            : ""}
+          {usdcBalance !== null ? (
+            <span className="text-(--color-muted)">
+              {" "}
+              · {formatUnits(usdcBalance, 6)} USDC
+            </span>
+          ) : null}
           {isOwner ? (
             <span className="ml-2 pill pill-warn">owner</span>
           ) : null}
         </p>
       )}
+
+      <NetworkBanner
+        requiredHexId={SEPOLIA_HEX_ID}
+        requiredName="Sepolia"
+        visible={!!account && !chainOk}
+        onSwitch={requestSwitch}
+        busy={busy !== null}
+      />
 
       {account && chainOk ? (
         <>

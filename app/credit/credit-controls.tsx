@@ -13,6 +13,7 @@ import {
 } from "viem";
 import { sepolia } from "viem/chains";
 import ReputationCreditAbi from "@/lib/abis/ReputationCredit.json";
+import NetworkBanner from "@/components/network-banner";
 
 const ERC20_ABI = [
   {
@@ -168,6 +169,20 @@ export default function CreditControls(props: Props) {
       });
     }
   }, [refresh]);
+
+  const requestSwitch = useCallback(async () => {
+    if (!window.ethereum) return;
+    setError(null);
+    try {
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: SEPOLIA_HEX_ID }],
+      });
+      setChainOk(true);
+    } catch (err) {
+      setError(extractError(err));
+    }
+  }, []);
 
   const ensureAllowance = useCallback(
     async (
@@ -340,58 +355,64 @@ export default function CreditControls(props: Props) {
   }, [account, agentId, props.creditAddress, publicClient, refresh]);
 
   return (
-    <div className="border border-(--color-border) rounded-lg p-4 space-y-4">
-      <h2 className="text-xs uppercase tracking-widest text-(--color-muted)">
-        actions
-      </h2>
-
+    <div className="card-flat space-y-4">
       {!account ? (
-        <button
-          onClick={handleConnect}
-          className="px-3 py-2 text-sm bg-(--color-accent) text-black rounded font-mono"
-        >
-          connect wallet
+        <button onClick={handleConnect} className="btn btn-primary">
+          connect wallet →
         </button>
       ) : (
-        <p className="text-xs font-mono text-(--color-muted)">
-          {account.slice(0, 6)}…{account.slice(-4)}
-          {chainOk ? "" : " · wrong network (need Sepolia)"}
-          {usdcBal !== null
-            ? ` · ${formatUnits(usdcBal, 6)} USDC`
-            : ""}
-          {shares !== null
-            ? ` · ${formatUnits(shares, 6)} shares`
-            : ""}
-          {isAgent ? " · agent" : ""}
+        <p className="text-xs font-mono">
+          <span className="text-(--color-fg)">
+            {account.slice(0, 6)}…{account.slice(-4)}
+          </span>
+          {usdcBal !== null ? (
+            <span className="text-(--color-muted)">
+              {" "}
+              · {formatUnits(usdcBal, 6)} USDC
+            </span>
+          ) : null}
+          {shares !== null ? (
+            <span className="text-(--color-muted)">
+              {" "}
+              · {formatUnits(shares, 6)} shares
+            </span>
+          ) : null}
+          {isAgent ? <span className="ml-2 pill pill-warn">agent</span> : null}
         </p>
       )}
+
+      <NetworkBanner
+        requiredHexId={SEPOLIA_HEX_ID}
+        requiredName="Sepolia"
+        visible={!!account && !chainOk}
+        onSwitch={requestSwitch}
+        busy={busy !== null}
+      />
 
       {account && chainOk ? (
         <>
           <div className="space-y-2">
-            <h3 className="text-xs text-(--color-muted) uppercase tracking-widest">
-              lender
-            </h3>
+            <p className="tag">lender</p>
             <div className="flex flex-wrap gap-2 items-center">
               <input
                 type="text"
                 value={depositAmount}
                 onChange={(e) => setDepositAmount(e.target.value)}
                 disabled={busy !== null}
-                className="px-2 py-1 text-sm font-mono bg-transparent border border-(--color-border) rounded w-20"
+                className="w-20"
               />
-              <span className="text-xs text-(--color-muted)">USDC</span>
+              <span className="tag">USDC</span>
               <button
                 onClick={onDeposit}
                 disabled={busy !== null}
-                className="px-3 py-1 text-sm bg-(--color-accent) text-black rounded font-mono disabled:opacity-50"
+                className="btn btn-primary"
               >
-                deposit
+                deposit →
               </button>
               <button
                 onClick={onWithdraw}
                 disabled={busy !== null || !shares || shares === 0n}
-                className="px-3 py-1 text-sm border border-(--color-border) rounded font-mono disabled:opacity-50"
+                className="btn"
               >
                 withdraw all
               </button>
@@ -399,10 +420,8 @@ export default function CreditControls(props: Props) {
           </div>
 
           {isAgent ? (
-            <div className="space-y-2 pt-2 border-t border-(--color-border)">
-              <h3 className="text-xs text-(--color-muted) uppercase tracking-widest">
-                agent (borrower)
-              </h3>
+            <div className="space-y-2 pt-3 border-t border-(--color-rule)">
+              <p className="tag">agent (borrower)</p>
               {!props.hasOpenLoan ? (
                 <div className="flex flex-wrap gap-2 items-center">
                   <input
@@ -410,15 +429,15 @@ export default function CreditControls(props: Props) {
                     value={borrowAmount}
                     onChange={(e) => setBorrowAmount(e.target.value)}
                     disabled={busy !== null}
-                    className="px-2 py-1 text-sm font-mono bg-transparent border border-(--color-border) rounded w-20"
+                    className="w-20"
                   />
-                  <span className="text-xs text-(--color-muted)">USDC</span>
+                  <span className="tag">USDC</span>
                   <button
                     onClick={onBorrow}
                     disabled={busy !== null}
-                    className="px-3 py-1 text-sm bg-(--color-accent) text-black rounded font-mono disabled:opacity-50"
+                    className="btn btn-primary"
                   >
-                    borrow
+                    borrow →
                   </button>
                 </div>
               ) : (
@@ -428,15 +447,15 @@ export default function CreditControls(props: Props) {
                     value={repayAmount}
                     onChange={(e) => setRepayAmount(e.target.value)}
                     disabled={busy !== null}
-                    className="px-2 py-1 text-sm font-mono bg-transparent border border-(--color-border) rounded w-20"
+                    className="w-20"
                   />
-                  <span className="text-xs text-(--color-muted)">USDC</span>
+                  <span className="tag">USDC</span>
                   <button
                     onClick={onRepay}
                     disabled={busy !== null}
-                    className="px-3 py-1 text-sm bg-(--color-accent) text-black rounded font-mono disabled:opacity-50"
+                    className="btn btn-primary"
                   >
-                    repay
+                    repay →
                   </button>
                 </div>
               )}
@@ -444,14 +463,14 @@ export default function CreditControls(props: Props) {
           ) : null}
 
           {props.isLiquidatable ? (
-            <div className="pt-2 border-t border-(--color-border) flex items-center gap-2">
-              <span className="text-xs text-red-500">
+            <div className="pt-3 border-t border-(--color-rule) flex items-center gap-3 flex-wrap">
+              <span className="text-xs text-(--color-amber)">
                 liquidatable — feedback dropped below threshold
               </span>
               <button
                 onClick={onLiquidate}
                 disabled={busy !== null}
-                className="ml-auto px-3 py-1 text-sm bg-red-500 text-black rounded font-mono disabled:opacity-50"
+                className="ml-auto btn btn-danger"
               >
                 liquidate
               </button>
@@ -461,10 +480,13 @@ export default function CreditControls(props: Props) {
       ) : null}
 
       {busy ? (
-        <p className="text-xs text-(--color-muted)">{busy}</p>
+        <p className="text-xs text-(--color-muted) italic">
+          <span className="caret" />
+          {busy}
+        </p>
       ) : null}
       {error ? (
-        <p className="text-xs text-red-500 break-words">{error}</p>
+        <p className="text-xs text-(--color-amber) break-words">{error}</p>
       ) : null}
       {lastTx ? (
         <p className="text-xs">
@@ -472,9 +494,9 @@ export default function CreditControls(props: Props) {
             href={`https://sepolia.etherscan.io/tx/${lastTx}`}
             target="_blank"
             rel="noreferrer"
-            className="text-(--color-accent) underline"
+            className="link"
           >
-            tx ↗
+            tx →
           </a>
         </p>
       ) : null}
