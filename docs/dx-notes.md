@@ -118,6 +118,23 @@ collected here as concrete signal for whichever team finds them useful.
   firing on every keystroke, so the field stays focused while the
   user types.
 
+- **Bad input silently disappears.** When something is malformed in a
+  node input (we hit it on the args field of a web3 read node, but it
+  may be more general), the value just vanishes from the field with
+  no error toast and no inline validation message. The only signal is
+  in the browser devtools:
+
+  ```
+  0uriybgyo-qmg.js:2 Uncaught TypeError: g.match is not a function
+  ```
+
+  So you fill the field, click away, the field is empty, and unless
+  you happen to have devtools open you have no idea why. Concrete
+  asks: (1) catch the type error and surface it as an inline
+  validation message under the field, (2) keep the user input in the
+  field (do not clear it) so they can fix the typo instead of
+  retyping from scratch.
+
 ### Score
 **6/10 for hackathon use, 9/10 for production.** The product is
 genuinely strong — what hurts the score is two-and-a-half hours lost
