@@ -144,7 +144,42 @@ attempted and never logged.
 - Or at minimum log the transform step as `status: "failed"` so it
   shows up in `get_execution_logs`
 
-### 2.5 `workflowRunId` template returns empty string
+### 2.5 Tuple-returning view functions are accessible by ABI output name, but only undocumented
+For a function like `getManifest(uint256) returns (address agent, bytes32 manifestRoot, string manifestUri, ...)`, the read output looks like:
+
+```json
+{
+  "result": {
+    "agent": "0xBf5df...",
+    "manifestRoot": "0x6b67...",
+    "manifestUri": "og://...",
+    "bond": "0",
+    ...
+  },
+  "success": true,
+  "addressLink": "..."
+}
+```
+
+So `{{@web3-read:Web3 Read.result.manifestRoot}}` works in webhook
+payloads and in functionArgs templates. We only discovered this by
+dumping `get_execution_logs` and reading the raw output blob. The
+workflow editor never tells you that named ABI outputs become object
+keys.
+
+**Asks:**
+- Document this in the manual ABI text area help text
+- Show the named output schema next to the read node after it runs
+  once, so the user knows what fields are addressable
+
+### 2.6 Inline template substitution inside functionArgs strings works, but is undocumented
+Setting `functionArgs: ["0x6d81…", "reputation-summary", "feedback={{@read-web3-1:Web3 Read - ReputationRegistry.result}} ts={{@trigger-cron:Cron Trigger.data.ts}}"]` correctly substitutes both templates inline, producing `"feedback=263 ts=1777321952625"` in the calldata. This is a great feature — it lets you avoid a separate transform node entirely. But it is not documented anywhere we could find.
+
+**Ask:** document inline template substitution as a first-class
+feature. It is the cleanest way to compose strings without a Run-Code
+transform.
+
+### 2.7 `workflowRunId` template returns empty string
 Our webhook payload included `workflowRunId: "{{@__run.id}}"` (and
 several variants — `{{$run.id}}`, `{{$execution.id}}`,
 `{{$workflow.runId}}`). All of them produce an empty string. We had to

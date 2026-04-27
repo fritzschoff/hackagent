@@ -279,49 +279,9 @@ export default async function KeeperHubPage() {
         },
       ],
     },
-    {
-      kind: "swap",
-      title: "swap mirror",
-      schedule: "per quote",
-      envVar: "KEEPERHUB_WORKFLOW_ID_SWAP",
-      description:
-        "every paid x402 quote spawns a workflow that mirrors the swap intent as an on-chain ERC-20 transfer. the original keeperhub usecase, kept as a smoke test.",
-      recipe: [
-        {
-          kind: "trigger",
-          title: "webhook (called by /api/a2a/jobs)",
-          props: [
-            { k: "input.tokenIn", v: "{{intent.tokenIn}}", mono: true },
-            { k: "input.tokenOut", v: "{{intent.tokenOut}}", mono: true },
-            { k: "input.amountIn", v: "{{intent.amountIn}}", mono: true },
-            { k: "input.amountOut", v: "{{quote.amountOut}}", mono: true },
-          ],
-        },
-        {
-          kind: "web3-write",
-          title: "ERC20.transfer (placeholder mirror)",
-          props: [
-            { k: "chain", v: "sepolia or any erc-20 testnet", mono: false },
-            { k: "address", v: "{{$trigger.input.tokenIn}}", mono: true },
-            { k: "function", v: "transfer(address,uint256)", mono: true },
-            { k: "args", v: "[recipient, $trigger.input.amountIn]", mono: true },
-          ],
-          note: "this is the existing thin demo workflow. replace with a real Uniswap router call to make this not-thin.",
-        },
-        {
-          kind: "webhook",
-          title: "callback",
-          props: [
-            { k: "url", v: webhookUrl, mono: true },
-            {
-              k: "body",
-              v: '{"kind":"swap","workflowRunId":"{{$run.id}}","txHash":"{{$step2.txHash}}","summary":"swap mirrored"}',
-              mono: true,
-            },
-          ],
-        },
-      ],
-    },
+    // swap-mirror retired: KeeperHub's Turnkey wallet generates invalid
+    // EIP-1559 transactions (priorityFee > maxFee), so it never landed
+    // a single tx. See docs/keeperhub-feedback.md §3.1.
   ];
 
   const [allRuns, workflowIds] = await Promise.all([
