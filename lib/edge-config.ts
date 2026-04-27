@@ -15,6 +15,7 @@ export type AddressMap = {
   inftTokenId?: number;
   agentBidsAddress?: `0x${string}`;
   sepoliaUsdcAddress?: `0x${string}`;
+  reputationCreditAddress?: `0x${string}`;
 };
 
 export type BaseSepoliaAddressMap = {

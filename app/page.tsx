@@ -126,6 +126,12 @@ export default async function DashboardPage() {
           >
             ipo ↗
           </a>
+          <a
+            href="/credit"
+            className="text-(--color-accent) underline"
+          >
+            credit ↗
+          </a>
         </p>
       </header>
 
