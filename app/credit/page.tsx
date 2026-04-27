@@ -1,6 +1,7 @@
 import { getSepoliaAddresses } from "@/lib/edge-config";
 import { readCreditPool, readCreditHistory, formatUsdc } from "@/lib/credit";
 import CreditControls from "./credit-controls";
+import SiteNav from "@/components/site-nav";
 
 export const revalidate = 30;
 
@@ -38,150 +39,178 @@ export default async function CreditPage() {
     : [];
 
   return (
-    <main className="mx-auto max-w-4xl p-8 space-y-10">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">
-          tradewise <span className="text-(--color-muted)">/ credit</span>
+    <main className="mx-auto max-w-5xl px-6 md:px-10 pb-24">
+      <SiteNav active="credit" />
+      <header className="pt-6 pb-10 border-b-2 border-(--color-fg) reveal reveal-1">
+        <p className="tag mb-2">defi primitive · sepolia</p>
+        <h1 className="display text-[clamp(2.25rem,6vw,4rem)] leading-[0.95] tracking-tight">
+          tradewise{" "}
+          <span className="display-italic font-light text-(--color-muted)">
+            / credit
+          </span>
         </h1>
-        <p className="text-sm text-(--color-muted)">
-          Uncollateralized USDC borrowing against ERC-8004 reputation. The
-          first DeFi primitive built on EIP-8004 — credit limit scales with
-          feedback count, liquidation triggers when reputation drops 20% or
-          more from borrow time.
+        <p className="mt-3 text-sm text-(--color-muted) max-w-2xl">
+          Uncollateralized USDC borrowing against ERC-8004 reputation. Credit
+          limit scales with feedback count; liquidation triggers when
+          reputation drops 20% or more from borrow time. Lenders take losses
+          via NAV-per-share writedown.
         </p>
       </header>
 
       {view === null ? (
-        <section className="border border-(--color-border) rounded-lg p-6 text-sm text-(--color-muted)">
+        <section className="card-flat mt-10 text-sm text-(--color-muted)">
           Credit pool not yet deployed or Edge Config missing
           <code className="ml-1">reputationCreditAddress</code>.
         </section>
       ) : (
-        <>
-          <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Stat label="pool TVL" value={formatUsdc(view.totalAssets)} accent />
-            <Stat label="outstanding" value={formatUsdc(view.totalLent)} />
-            <Stat label="free" value={formatUsdc(view.freeLiquidity)} />
-            <Stat
+        <div className="mt-10 space-y-12 reveal reveal-2">
+          <div className="stat-grid">
+            <Cell label="pool TVL" value={formatUsdc(view.totalAssets)} accent />
+            <Cell label="outstanding" value={formatUsdc(view.totalLent)} />
+            <Cell label="free" value={formatUsdc(view.freeLiquidity)} />
+            <Cell
               label="agent feedback"
               value={String(view.agentCurrentFeedback)}
             />
+          </div>
+
+          <section>
+            <div className="flex items-baseline gap-5 mb-5">
+              <span className="section-marker">§01</span>
+              <div>
+                <h2 className="display text-2xl">
+                  tradewise credit profile
+                </h2>
+                <p className="tag mt-1">agentId #{addresses.agentId}</p>
+              </div>
+            </div>
+            <div className="card-flat space-y-3">
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-y-3">
+                <Row
+                  label="credit limit"
+                  value={formatUsdc(view.agentCreditLimit)}
+                />
+                <Row
+                  label="loan principal"
+                  value={
+                    view.agentLoan
+                      ? formatUsdc(view.agentLoan.principal)
+                      : "(none)"
+                  }
+                />
+                <Row
+                  label="borrowed at feedback"
+                  value={
+                    view.agentLoan
+                      ? String(view.agentLoan.borrowedAtFeedback)
+                      : "—"
+                  }
+                />
+                <Row
+                  label="status"
+                  value={
+                    view.agentLoan?.defaulted
+                      ? "defaulted"
+                      : view.isLiquidatable
+                        ? "liquidatable"
+                        : view.agentLoan
+                          ? "active"
+                          : "no loan"
+                  }
+                  amber={view.isLiquidatable || view.agentLoan?.defaulted}
+                />
+              </dl>
+              <p className="text-xs text-(--color-muted) max-w-2xl leading-relaxed pt-3 border-t border-(--color-rule)">
+                Limit formula: <code>min(feedbackCount × $5, pool / 10)</code>.
+                Liquidation triggers when current feedback &lt; 80% of
+                borrow-time feedback. Defaults are absorbed by lenders pro-rata
+                via NAV-per-share writedown — the agent retains the borrowed
+                USDC, reputation is the recourse.
+              </p>
+            </div>
           </section>
 
-          <section className="border border-(--color-border) rounded-lg p-4 space-y-2">
-            <h2 className="text-xs uppercase tracking-widest text-(--color-muted)">
-              tradewise (agentId {addresses.agentId}) credit profile
-            </h2>
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-y-1 text-xs font-mono">
-              <Row
-                label="credit limit"
-                value={formatUsdc(view.agentCreditLimit)}
-              />
-              <Row
-                label="loan principal"
-                value={
-                  view.agentLoan
-                    ? formatUsdc(view.agentLoan.principal)
-                    : "(none)"
-                }
-              />
-              <Row
-                label="borrowed at feedback"
-                value={
-                  view.agentLoan
-                    ? String(view.agentLoan.borrowedAtFeedback)
-                    : "—"
-                }
-              />
-              <Row
-                label="status"
-                value={
-                  view.agentLoan?.defaulted
-                    ? "defaulted"
-                    : view.isLiquidatable
-                      ? "liquidatable"
-                      : view.agentLoan
-                        ? "active"
-                        : "no loan"
-                }
-              />
-            </dl>
-            <p className="text-xs text-(--color-muted)">
-              Limit formula: <code>min(feedbackCount × $5, pool / 10)</code>.
-              Liquidation triggers when current feedback &lt; 80% of borrow-
-              time feedback. Defaults are absorbed by lenders pro-rata via
-              NAV-per-share writedown — the agent retains the borrowed USDC,
-              reputation is the recourse.
-            </p>
+          <section>
+            <div className="flex items-baseline gap-5 mb-5">
+              <span className="section-marker">§02</span>
+              <div>
+                <h2 className="display text-2xl">actions</h2>
+                <p className="tag mt-1">deposit · borrow · repay · liquidate</p>
+              </div>
+            </div>
+            <CreditControls
+              creditAddress={credit!}
+              usdcAddress={usdc!}
+              agentId={agentId.toString()}
+              agentAddress={agentAddress}
+              isLiquidatable={view.isLiquidatable}
+              hasOpenLoan={view.agentLoan !== null && !view.agentLoan.defaulted}
+            />
           </section>
-
-          <CreditControls
-            creditAddress={credit!}
-            usdcAddress={usdc!}
-            agentId={agentId.toString()}
-            agentAddress={agentAddress}
-            isLiquidatable={view.isLiquidatable}
-            hasOpenLoan={view.agentLoan !== null && !view.agentLoan.defaulted}
-          />
 
           {history.length > 0 ? (
-            <section className="border border-(--color-border) rounded-lg p-4 space-y-2">
-              <h2 className="text-xs uppercase tracking-widest text-(--color-muted)">
-                history
-              </h2>
-              <ul className="text-xs font-mono space-y-1">
-                {history.map((e) => (
-                  <li
-                    key={e.txHash}
-                    className="flex gap-2 items-center text-(--color-muted)"
-                  >
-                    <span
-                      className={
-                        e.kind === "liquidated"
-                          ? "text-red-500"
-                          : "text-(--color-accent)"
-                      }
+            <section>
+              <div className="flex items-baseline gap-5 mb-5">
+                <span className="section-marker">§03</span>
+                <div>
+                  <h2 className="display text-2xl">history</h2>
+                </div>
+              </div>
+              <div className="card-flat p-0">
+                <ul>
+                  {history.map((e) => (
+                    <li
+                      key={e.txHash}
+                      className="flex items-baseline gap-3 px-5 py-3 border-b border-(--color-rule) last:border-0 font-mono text-xs"
                     >
-                      [{e.kind}]
-                    </span>
-                    <span>
-                      {e.kind === "borrowed"
-                        ? `${shortAddr(e.agentAddress)} drew ${formatUsdc(e.amount)}`
-                        : e.kind === "repaid"
-                          ? `${shortAddr(e.payer)} paid ${formatUsdc(e.amount)}`
-                          : `default ${formatUsdc(e.outstanding)} (rep ${e.borrowedAtFeedback}→${e.currentFeedback})`}
-                    </span>
-                    <a
-                      href={`${SEPOLIA_ETHERSCAN}/tx/${e.txHash}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="ml-auto text-(--color-accent) underline"
-                    >
-                      tx ↗
-                    </a>
-                  </li>
-                ))}
-              </ul>
+                      <span
+                        className={
+                          e.kind === "liquidated"
+                            ? "text-(--color-amber)"
+                            : "text-(--color-accent)"
+                        }
+                      >
+                        [{e.kind}]
+                      </span>
+                      <span className="text-(--color-muted)">
+                        {e.kind === "borrowed"
+                          ? `${shortAddr(e.agentAddress)} drew ${formatUsdc(e.amount)}`
+                          : e.kind === "repaid"
+                            ? `${shortAddr(e.payer)} paid ${formatUsdc(e.amount)}`
+                            : `default ${formatUsdc(e.outstanding)} (rep ${e.borrowedAtFeedback}→${e.currentFeedback})`}
+                      </span>
+                      <a
+                        href={`${SEPOLIA_ETHERSCAN}/tx/${e.txHash}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="ml-auto link"
+                      >
+                        tx →
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </section>
           ) : null}
 
-          <div className="text-xs text-(--color-muted) space-x-3">
+          <div className="text-xs">
             <a
               href={`${SEPOLIA_ETHERSCAN}/address/${credit}`}
               target="_blank"
               rel="noreferrer"
-              className="text-(--color-accent) underline"
+              className="link"
             >
-              ReputationCredit ↗
+              ReputationCredit →
             </a>
           </div>
-        </>
+        </div>
       )}
     </main>
   );
 }
 
-function Stat({
+function Cell({
   label,
   value,
   accent,
@@ -191,12 +220,10 @@ function Stat({
   accent?: boolean;
 }) {
   return (
-    <div className="border border-(--color-border) rounded-lg p-3">
-      <div className="text-xs uppercase tracking-widest text-(--color-muted)">
-        {label}
-      </div>
+    <div className="stat-cell">
+      <div className="stat-label">{label}</div>
       <div
-        className={`text-base font-mono ${accent ? "text-(--color-accent)" : ""}`}
+        className={`stat-value ${accent ? "stat-value-accent" : ""}`}
       >
         {value}
       </div>
@@ -204,11 +231,13 @@ function Stat({
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, amber }: { label: string; value: string; amber?: boolean }) {
   return (
-    <div className="flex gap-3">
-      <dt className="text-(--color-muted) w-44 shrink-0">{label}</dt>
-      <dd>{value}</dd>
+    <div className="flex gap-4 items-baseline">
+      <dt className="tag w-44 shrink-0">{label}</dt>
+      <dd className={`font-mono text-sm ${amber ? "text-(--color-amber)" : ""}`}>
+        {value}
+      </dd>
     </div>
   );
 }
