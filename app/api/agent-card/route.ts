@@ -128,6 +128,15 @@ export async function GET(req: Request) {
             "uncollateralized USDC borrowing against ERC-8004 feedbackCount",
         }
       : null,
+    sla: addresses.slaBondAddress
+      ? {
+          contract: `eip155:11155111:${addresses.slaBondAddress}`,
+          marketplaceViewer: `${baseUrl}/marketplace`,
+          slashSplit: { clientRefundBps: 7000, slasherRewardBps: 3000 },
+          model:
+            "per-job slashable USDC bond — validator score < threshold triggers slash",
+        }
+      : null,
     upstreamAgents: pricewatchAddr
       ? [
           {
