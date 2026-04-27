@@ -19,6 +19,14 @@ type AddressMap = {
   validationRegistry: `0x${string}`;
   agentEOA: `0x${string}`;
   agentId: number;
+  pricewatchEOA?: `0x${string}`;
+  pricewatchAgentId?: number;
+  identityRegistryV2?: `0x${string}`;
+  inftAddress?: `0x${string}`;
+  inftAgentId?: number;
+  inftTokenId?: number;
+  agentBidsAddress?: `0x${string}`;
+  sepoliaUsdcAddress?: `0x${string}`;
 };
 
 function readVercelToken(): string {
@@ -84,6 +92,14 @@ async function upsertAddresses(
   }
 }
 
+function parseArg(name: string): string | undefined {
+  const prefix = `--${name}=`;
+  for (const a of process.argv.slice(3)) {
+    if (a.startsWith(prefix)) return a.slice(prefix.length);
+  }
+  return undefined;
+}
+
 async function main(): Promise<void> {
   const network = process.argv[2] ?? "sepolia";
   const dep = readDeployment(network);
@@ -94,6 +110,65 @@ async function main(): Promise<void> {
     agentEOA: dep.agentWallet,
     agentId: dep.agentId,
   };
+  const pricewatchEOA = parseArg("pricewatch-eoa") ??
+    process.env.PRICEWATCH_EOA;
+  const pricewatchAgentIdRaw = parseArg("pricewatch-agentid") ??
+    process.env.PRICEWATCH_AGENT_ID;
+  if (pricewatchEOA) {
+    if (!/^0x[a-fA-F0-9]{40}$/.test(pricewatchEOA)) {
+      throw new Error(`Invalid pricewatch EOA: ${pricewatchEOA}`);
+    }
+    value.pricewatchEOA = pricewatchEOA as `0x${string}`;
+  }
+  if (pricewatchAgentIdRaw) {
+    const n = Number(pricewatchAgentIdRaw);
+    if (!Number.isInteger(n) || n <= 0) {
+      throw new Error(`Invalid pricewatch agentId: ${pricewatchAgentIdRaw}`);
+    }
+    value.pricewatchAgentId = n;
+  }
+
+  // Phase 3 (INFT V2). When an inft deployment file exists, layer it in.
+  const inftDeployPath = join(
+    process.cwd(),
+    "contracts",
+    "deployments",
+    `${network}-inft.json`,
+  );
+  if (existsSync(inftDeployPath)) {
+    const inftDep = JSON.parse(readFileSync(inftDeployPath, "utf8")) as {
+      identityRegistryV2: `0x${string}`;
+      agentInft: `0x${string}`;
+      agentId: number;
+    };
+    value.identityRegistryV2 = inftDep.identityRegistryV2;
+    value.inftAddress = inftDep.agentInft;
+    value.inftAgentId = inftDep.agentId;
+  }
+  const inftTokenIdRaw = parseArg("inft-tokenid") ?? process.env.INFT_TOKEN_ID;
+  if (inftTokenIdRaw) {
+    const n = Number(inftTokenIdRaw);
+    if (!Number.isInteger(n) || n <= 0) {
+      throw new Error(`Invalid INFT tokenId: ${inftTokenIdRaw}`);
+    }
+    value.inftTokenId = n;
+  }
+
+  // Phase 4 (bidding pool).
+  const bidsDeployPath = join(
+    process.cwd(),
+    "contracts",
+    "deployments",
+    `${network}-bids.json`,
+  );
+  if (existsSync(bidsDeployPath)) {
+    const bidsDep = JSON.parse(readFileSync(bidsDeployPath, "utf8")) as {
+      agentBids: `0x${string}`;
+      usdc: `0x${string}`;
+    };
+    value.agentBidsAddress = bidsDep.agentBids;
+    value.sepoliaUsdcAddress = bidsDep.usdc;
+  }
   const id = readEdgeConfigId();
   const token = readVercelToken();
   const teamId = process.env.VERCEL_TEAM_ID ?? "team_xm9zliWnyGJOsqIMHfNlXkGF";

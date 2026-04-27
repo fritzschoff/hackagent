@@ -8,7 +8,8 @@ export type WalletId =
   | "client1"
   | "client2"
   | "client3"
-  | "validator";
+  | "validator"
+  | "pricewatch";
 
 const ENV_KEY: Record<WalletId, string> = {
   agent: "AGENT_PK",
@@ -16,6 +17,7 @@ const ENV_KEY: Record<WalletId, string> = {
   client2: "CLIENT2_PK",
   client3: "CLIENT3_PK",
   validator: "VALIDATOR_PK",
+  pricewatch: "PRICEWATCH_PK",
 };
 
 function pk(id: WalletId): `0x${string}` {

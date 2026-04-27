@@ -21,6 +21,15 @@ export const Quote = z.object({
 
 export type Quote = z.infer<typeof Quote>;
 
+export const PricewatchSummary = z.object({
+  ok: z.boolean(),
+  paymentTx: z.string().nullable(),
+  symbol: z.string().nullable(),
+  priceUsd: z.string().nullable(),
+});
+
+export type PricewatchSummary = z.infer<typeof PricewatchSummary>;
+
 export const Job = z.object({
   id: z.string(),
   intent: SwapIntent,
@@ -28,6 +37,7 @@ export const Job = z.object({
   paymentTx: z.string().nullable(),
   paymentFromAddress: z.string().nullable(),
   ts: z.number(),
+  pricewatch: PricewatchSummary.nullable().optional(),
 });
 
 export type Job = z.infer<typeof Job>;
