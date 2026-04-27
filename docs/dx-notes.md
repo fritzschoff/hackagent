@@ -97,6 +97,17 @@ collected here as concrete signal for whichever team finds them useful.
   obvious next step and would close the loop with the rest of the
   agent economy. We'd build this if it shipped.
 
+- **Naming workflows is not obvious.** When you create a new workflow
+  there is no clear "name" field at the top of the editor, so you end
+  up with auto generated names that all look identical in the
+  workflow list. Once we had four workflows (heartbeat, reputation
+  cache, compliance attest, swap mirror) it got hard to tell them
+  apart at a glance. The workflow id you need to copy into the client
+  app is also buried — you have to dig through the URL or the JSON.
+  Concrete asks: (1) editable title at the top of the workflow
+  editor, (2) show the name in the list view (not just the id),
+  (3) one click copy button next to the workflow id.
+
 ### Score
 **6/10 for hackathon use, 9/10 for production.** The product is
 genuinely strong — what hurts the score is two-and-a-half hours lost
