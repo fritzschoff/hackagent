@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withX402 } from "@x402/next";
 import { waitUntil } from "@vercel/functions";
-import { getResourceServer, QUOTE_PRICE_USD, X402_NETWORK } from "@/lib/x402";
+import { getResourceServer, X402_NETWORK } from "@/lib/x402";
 import { quoteSwap } from "@/lib/uniswap";
 import { pushJob, pushKeeperhubRun, pushPricewatchCall } from "@/lib/redis";
 import { tryLoadAccount } from "@/lib/wallets";
@@ -12,6 +12,7 @@ import { reasonAboutQuote } from "@/lib/zg-compute";
 import { callPaidJson } from "@/lib/x402-client";
 import { postFeedback } from "@/lib/erc8004";
 import { getSepoliaAddresses } from "@/lib/edge-config";
+import { getQuotePrice } from "@/lib/pricing";
 import type { PricewatchResult } from "@/lib/pricewatch";
 
 export const runtime = "nodejs";
@@ -189,13 +190,18 @@ const handler = async (req: NextRequest): Promise<NextResponse> => {
   return NextResponse.json({ ok: true, job });
 };
 
-let cachedPaidHandler: ((req: NextRequest) => Promise<NextResponse>) | null =
-  null;
-
-async function getPaidHandler(): Promise<
+// Phase 5: handler cache keyed by current price. Each tier crossing builds
+// a fresh withX402 wrapper but reuses the heavy x402ResourceServer init.
+const handlerByPrice = new Map<
+  string,
   (req: NextRequest) => Promise<NextResponse>
-> {
-  if (cachedPaidHandler) return cachedPaidHandler;
+>();
+
+async function getPaidHandler(
+  price: `$${string}`,
+): Promise<(req: NextRequest) => Promise<NextResponse>> {
+  const cached = handlerByPrice.get(price);
+  if (cached) return cached;
   const server = await getResourceServer();
   // Phase 9: when X402_PAYOUT_OVERRIDE is set (typically the RevenueSplitter
   // address), x402 USDC settlements land at the splitter instead of the
@@ -207,12 +213,12 @@ async function getPaidHandler(): Promise<
     payoutOverride && /^0x[a-fA-F0-9]{40}$/.test(payoutOverride)
       ? payoutOverride
       : agentAddress!;
-  cachedPaidHandler = withX402(
+  const built = withX402(
     handler,
     {
       accepts: {
         scheme: "exact",
-        price: QUOTE_PRICE_USD,
+        price,
         network: X402_NETWORK,
         payTo,
         maxTimeoutSeconds: 60,
@@ -223,7 +229,8 @@ async function getPaidHandler(): Promise<
     },
     server,
   );
-  return cachedPaidHandler;
+  handlerByPrice.set(price, built);
+  return built;
 }
 
 export const POST = async (req: NextRequest): Promise<NextResponse> => {
@@ -236,7 +243,15 @@ export const POST = async (req: NextRequest): Promise<NextResponse> => {
       { status: 500 },
     );
   }
-  const paid = await getPaidHandler();
+  const addresses = await getSepoliaAddresses();
+  const reputationRegistry = addresses.reputationRegistry;
+  const agentId = BigInt(addresses.agentId);
+  const { price } =
+    reputationRegistry !== "0x0000000000000000000000000000000000000000" &&
+    agentId > 0n
+      ? await getQuotePrice({ reputationRegistry, agentId })
+      : { price: "$0.10" as const };
+  const paid = await getPaidHandler(price);
   return paid(req);
 };
 
