@@ -138,6 +138,12 @@ export default async function DashboardPage() {
           >
             marketplace ↗
           </a>
+          <a
+            href="/merger"
+            className="text-(--color-accent) underline"
+          >
+            m&amp;a ↗
+          </a>
         </p>
       </header>
 

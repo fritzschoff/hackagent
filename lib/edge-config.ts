@@ -17,6 +17,7 @@ export type AddressMap = {
   sepoliaUsdcAddress?: `0x${string}`;
   reputationCreditAddress?: `0x${string}`;
   slaBondAddress?: `0x${string}`;
+  agentMergerAddress?: `0x${string}`;
 };
 
 export type BaseSepoliaAddressMap = {
