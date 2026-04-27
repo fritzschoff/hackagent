@@ -28,6 +28,7 @@ type AddressMap = {
   agentBidsAddress?: `0x${string}`;
   sepoliaUsdcAddress?: `0x${string}`;
   reputationCreditAddress?: `0x${string}`;
+  slaBondAddress?: `0x${string}`;
 };
 
 function readVercelToken(): string {
@@ -183,6 +184,20 @@ async function main(): Promise<void> {
       reputationCredit: `0x${string}`;
     };
     value.reputationCreditAddress = creditDep.reputationCredit;
+  }
+
+  // Phase 11 (SLA bond contract).
+  const slaDeployPath = join(
+    process.cwd(),
+    "contracts",
+    "deployments",
+    `${network}-sla.json`,
+  );
+  if (existsSync(slaDeployPath)) {
+    const slaDep = JSON.parse(readFileSync(slaDeployPath, "utf8")) as {
+      slaBond: `0x${string}`;
+    };
+    value.slaBondAddress = slaDep.slaBond;
   }
   const id = readEdgeConfigId();
   const token = readVercelToken();

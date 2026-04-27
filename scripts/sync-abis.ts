@@ -12,6 +12,7 @@ const CONTRACTS = [
   "RevenueSplitter",
   "SharesSale",
   "ReputationCredit",
+  "SlaBond",
 ] as const;
 
 function syncAbi(name: string): void {

@@ -132,6 +132,12 @@ export default async function DashboardPage() {
           >
             credit ↗
           </a>
+          <a
+            href="/marketplace"
+            className="text-(--color-accent) underline"
+          >
+            marketplace ↗
+          </a>
         </p>
       </header>
 
