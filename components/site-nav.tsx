@@ -7,6 +7,7 @@ const ITEMS = [
   { href: "/credit", label: "credit", key: "credit" },
   { href: "/marketplace", label: "marketplace", key: "marketplace" },
   { href: "/merger", label: "m&a", key: "merger" },
+  { href: "/faq", label: "faq", key: "faq" },
 ] as const;
 
 export default function SiteNav({

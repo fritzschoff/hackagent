@@ -7,13 +7,13 @@ import {
   custom,
   http,
   formatUnits,
-  parseUnits,
   type Address,
   type Hex,
 } from "viem";
 import { baseSepolia } from "viem/chains";
 import SharesSaleAbi from "@/lib/abis/SharesSale.json";
 import RevenueSplitterAbi from "@/lib/abis/RevenueSplitter.json";
+import NetworkBanner from "@/components/network-banner";
 
 const ERC20_ABI = [
   {
@@ -177,6 +177,20 @@ export default function IpoControls(props: Props) {
     }
   }, [refreshState]);
 
+  const requestSwitch = useCallback(async () => {
+    if (!window.ethereum) return;
+    setError(null);
+    try {
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: BASE_SEPOLIA_HEX_ID }],
+      });
+      setChainOk(true);
+    } catch (err) {
+      setError(extractError(err));
+    }
+  }, []);
+
   const onBuy = useCallback(async () => {
     if (!account || !window.ethereum) return;
     setError(null);
@@ -259,90 +273,101 @@ export default function IpoControls(props: Props) {
   })();
 
   return (
-    <div className="space-y-4">
-      <div className="border border-(--color-border) rounded-lg p-4 space-y-3">
-        {!account ? (
-          <button
-            onClick={handleConnect}
-            className="px-3 py-2 text-sm bg-(--color-accent) text-black rounded font-mono"
-          >
-            connect wallet
-          </button>
-        ) : (
-          <p className="text-xs font-mono text-(--color-muted)">
+    <div className="card-flat space-y-4">
+      {!account ? (
+        <button onClick={handleConnect} className="btn btn-primary">
+          connect wallet →
+        </button>
+      ) : (
+        <p className="text-xs font-mono">
+          <span className="text-(--color-fg)">
             {account.slice(0, 6)}…{account.slice(-4)}
-            {chainOk ? "" : " · wrong network (need Base Sepolia)"}
-            {usdcBalance !== null
-              ? ` · ${formatUnits(usdcBalance, 6)} USDC`
-              : ""}
-            {shareBalance !== null
-              ? ` · ${shareBalance / 10n ** 18n} TRADE`
-              : ""}
-          </p>
-        )}
+          </span>
+          {usdcBalance !== null ? (
+            <span className="text-(--color-muted)">
+              {" "}
+              · {formatUnits(usdcBalance, 6)} USDC
+            </span>
+          ) : null}
+          {shareBalance !== null ? (
+            <span className="text-(--color-muted)">
+              {" "}
+              · {shareBalance / 10n ** 18n} TRADE
+            </span>
+          ) : null}
+        </p>
+      )}
 
-        {account && chainOk ? (
-          <>
-            <div className="flex flex-wrap gap-2 items-center">
-              <label className="text-xs text-(--color-muted)">buy</label>
-              <input
-                type="text"
-                value={buyAmount}
-                onChange={(e) => setBuyAmount(e.target.value)}
-                disabled={busy !== null}
-                className="px-2 py-1 text-sm font-mono bg-transparent border border-(--color-border) rounded w-20"
-              />
-              <span className="text-xs text-(--color-muted)">
-                shares · cost ≈ ${formatUnits(buyCost, 6)} USDC
-              </span>
-              <button
-                onClick={onBuy}
-                disabled={busy !== null}
-                className="px-3 py-1 text-sm bg-(--color-accent) text-black rounded font-mono disabled:opacity-50"
-              >
-                buy
-              </button>
-            </div>
+      <NetworkBanner
+        requiredHexId={BASE_SEPOLIA_HEX_ID}
+        requiredName="Base Sepolia"
+        visible={!!account && !chainOk}
+        onSwitch={requestSwitch}
+        busy={busy !== null}
+      />
 
-            <div className="flex flex-wrap gap-2 items-center pt-2 border-t border-(--color-border)">
-              <span className="text-xs text-(--color-muted)">claimable</span>
-              <span className="text-sm font-mono">
-                {claimable !== null
-                  ? `${formatUnits(claimable, 6)} USDC`
-                  : "—"}
-              </span>
-              <button
-                onClick={onClaim}
-                disabled={busy !== null || !claimable || claimable === 0n}
-                className="ml-auto px-3 py-1 text-sm bg-(--color-accent) text-black rounded font-mono disabled:opacity-50"
-              >
-                claim
-              </button>
-            </div>
-          </>
-        ) : null}
-
-        {busy ? (
-          <p className="text-xs text-(--color-muted)">{busy}</p>
-        ) : null}
-        {error ? (
-          <p className="text-xs text-red-500 break-words">{error}</p>
-        ) : null}
-        {lastTx ? (
-          <p className="text-xs">
-            <a
-              href={`https://sepolia.basescan.org/tx/${lastTx}`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-(--color-accent) underline"
+      {account && chainOk ? (
+        <>
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="tag">buy</span>
+            <input
+              type="text"
+              value={buyAmount}
+              onChange={(e) => setBuyAmount(e.target.value)}
+              disabled={busy !== null}
+              className="w-20"
+            />
+            <span className="text-xs text-(--color-muted)">
+              shares · cost ≈ ${formatUnits(buyCost, 6)} USDC
+            </span>
+            <button
+              onClick={onBuy}
+              disabled={busy !== null}
+              className="btn btn-primary"
             >
-              tx ↗
-            </a>
-          </p>
-        ) : null}
-      </div>
+              buy →
+            </button>
+          </div>
+
+          <div className="flex flex-wrap gap-2 items-center pt-3 border-t border-(--color-rule)">
+            <span className="tag">claimable</span>
+            <span className="display-italic text-xl text-(--color-accent)">
+              {claimable !== null ? formatUnits(claimable, 6) : "—"}
+            </span>
+            <span className="text-xs text-(--color-muted)">USDC</span>
+            <button
+              onClick={onClaim}
+              disabled={busy !== null || !claimable || claimable === 0n}
+              className="ml-auto btn btn-primary"
+            >
+              claim →
+            </button>
+          </div>
+        </>
+      ) : null}
+
+      {busy ? (
+        <p className="text-xs text-(--color-muted) italic">
+          <span className="caret" />
+          {busy}
+        </p>
+      ) : null}
+      {error ? (
+        <p className="text-xs text-(--color-amber) break-words">{error}</p>
+      ) : null}
+      {lastTx ? (
+        <p className="text-xs">
+          <a
+            href={`https://sepolia.basescan.org/tx/${lastTx}`}
+            target="_blank"
+            rel="noreferrer"
+            className="link"
+          >
+            tx →
+          </a>
+        </p>
+      ) : null}
     </div>
   );
 }
 
-void parseUnits;

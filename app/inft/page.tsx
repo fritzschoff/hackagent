@@ -148,6 +148,47 @@ export default async function InftPage() {
                 </p>
               </div>
             </div>
+
+            {standingBids.length > 0 ? (
+              <div className="card-flat p-0 mb-4">
+                <div className="px-5 py-3 border-b border-(--color-rule) flex items-baseline gap-3">
+                  <span className="tag">standing offers</span>
+                  <span className="text-xs text-(--color-muted)">
+                    {standingBids.length}{" "}
+                    active · highest{" "}
+                    <span className="text-(--color-accent) display-italic text-base">
+                      {formatUsdc(standingBids[0]!.amount)}
+                    </span>
+                  </span>
+                </div>
+                <ul>
+                  {standingBids.map((b, i) => (
+                    <li
+                      key={b.bidder}
+                      className="flex items-baseline gap-4 px-5 py-3 border-b border-(--color-rule) last:border-0 font-mono text-xs"
+                    >
+                      <span className="tag w-6 shrink-0">#{i + 1}</span>
+                      <a
+                        href={`${SEPOLIA_ETHERSCAN}/address/${b.bidder}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="link"
+                      >
+                        {shortAddr(b.bidder)}
+                      </a>
+                      <span className="ml-auto display-italic text-lg text-(--color-accent)">
+                        {formatUsdc(b.amount)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="card-flat mb-4 text-xs text-(--color-muted)">
+                no standing offers yet — be the first to bid
+              </div>
+            )}
+
             {bidsAddress && usdcAddress && inftAddress ? (
               <BidControls
                 tokenId={tokenId.toString()}

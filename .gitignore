@@ -27,3 +27,4 @@ next-env.d.ts
 # Playwright artifacts and design QA screenshots
 .playwright-mcp/
 *-1.png
+*.png
