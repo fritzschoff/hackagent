@@ -5,7 +5,6 @@ const kinds = [
   "heartbeat",
   "reputation-cache",
   "compliance-attest",
-  "swap",
 ] as const;
 
 async function main() {
@@ -23,20 +22,13 @@ async function main() {
         ? { ts: Date.now() }
         : k === "reputation-cache"
           ? { agentId: 1, ts: Date.now() }
-          : k === "compliance-attest"
-            ? {
-                registry: "0xD92F99A883B3Ca3F5736bf24361aa75B53168e7c",
-                agentId: 1,
-                expectedRoot:
-                  "0x6b675048fbacbe7c0b90b796ff07657ac2a410969018ff2436d6566e62952f12",
-                ts: Date.now(),
-              }
-            : {
-                tokenIn: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
-                tokenOut: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
-                amountIn: "1",
-                amountOut: "1",
-              };
+          : {
+              registry: "0xD92F99A883B3Ca3F5736bf24361aa75B53168e7c",
+              agentId: 1,
+              expectedRoot:
+                "0x6b675048fbacbe7c0b90b796ff07657ac2a410969018ff2436d6566e62952f12",
+              ts: Date.now(),
+            };
     const result = await triggerKeeperHub({
       kind: k,
       input,

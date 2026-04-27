@@ -1,5 +1,5 @@
 /* Direct MCP wrapper — list tools and read workflow definitions. */
-const MCP_URL = process.env.KEEPERHUB_MCP_URL ?? "https://app.keeperhub.com/mcp";
+const MCP_URL_KH = process.env.KEEPERHUB_MCP_URL ?? "https://app.keeperhub.com/mcp";
 const apiKey = process.env.KEEPERHUB_API_KEY;
 if (!apiKey) {
   console.error("KEEPERHUB_API_KEY missing");
@@ -10,7 +10,7 @@ let cachedSession: string | null = null;
 
 async function getSession(): Promise<string> {
   if (cachedSession) return cachedSession;
-  const res = await fetch(MCP_URL, {
+  const res = await fetch(MCP_URL_KH, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -44,7 +44,7 @@ async function parseMcpBody(text: string): Promise<unknown> {
 
 async function rpc(method: string, params: unknown): Promise<unknown> {
   const sessionId = await getSession();
-  const res = await fetch(MCP_URL, {
+  const res = await fetch(MCP_URL_KH, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
