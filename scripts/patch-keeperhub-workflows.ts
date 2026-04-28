@@ -142,21 +142,24 @@ async function patchHeartbeat(apiKey: string) {
       ]);
       console.log(`  patched value template → {{@trigger-cron:Cron Trigger.data.ts}}`);
     }
-    // Demote the cron from hourly to daily — push from /api/a2a/jobs is
-    // now the primary path, KeeperHub cron is a once-a-day safety net so
-    // the agent stays alive even if our Vercel app goes down.
+    // Convert the trigger from Schedule to Webhook — only our app's push
+    // (`triggerKeeperHub({kind: "heartbeat"})` from /api/a2a/jobs) fires
+    // this. No KeeperHub-side cron, so no setText when nothing is
+    // happening. The Vercel daily safety-net cron is the absolute floor
+    // if both KeeperHub and x402 are silent.
     if (n.id === "trigger-cron") {
       const cfg = n.data.config;
-      cfg.scheduleCron = "0 6 * * *";
-      console.log(`  cron schedule → daily 06:00 UTC (was hourly)`);
+      cfg.triggerType = "Webhook";
+      delete cfg.scheduleCron;
+      console.log(`  trigger → Webhook (cron removed)`);
     }
   }
 
   await tool(apiKey, "update_workflow", {
     workflowId: id,
-    name: "Heartbeat (push from x402 + daily safety net)",
+    name: "Heartbeat (webhook-triggered, push from x402)",
     description:
-      "Writes last-seen-at to ENS. Primary trigger is push from /api/a2a/jobs on every paid quote (debounced 5min). Daily 06:00 UTC cron is the still-alive fallback.",
+      "Writes last-seen-at to ENS. Triggered ONLY when /api/a2a/jobs pushes via execute_workflow on a paid x402 quote (debounced 5min). No cron schedule — zero gas when the agent is idle.",
     nodes: wf.nodes,
     edges: wf.edges,
   });
@@ -262,18 +265,19 @@ async function patchReputationCache(apiKey: string) {
     `  rewired ${triggerId} → read-web3-1 → write-setText → webhook-1`,
   );
 
-  // Demote cron from hourly to daily — same reasoning as heartbeat.
+  // Same as heartbeat: drop the cron, webhook-only.
   if (triggerNode) {
     const tcfg = triggerNode.data.config as Record<string, unknown>;
-    tcfg.scheduleCron = "0 6 * * *";
-    console.log(`  cron schedule → daily 06:00 UTC (was hourly)`);
+    tcfg.triggerType = "Webhook";
+    delete tcfg.scheduleCron;
+    console.log(`  trigger → Webhook (cron removed)`);
   }
 
   await tool(apiKey, "update_workflow", {
     workflowId: id,
-    name: "Reputation cache (push from x402 + daily safety net)",
+    name: "Reputation cache (webhook-triggered, push from x402)",
     description:
-      "Reads ERC-8004 feedbackCount and writes a compact summary to ENS reputation-summary. Primary trigger is push from /api/a2a/jobs on every paid quote (debounced 5min). Daily 06:00 UTC cron is the still-alive fallback.",
+      "Reads ERC-8004 feedbackCount and writes a compact summary to ENS reputation-summary. Triggered ONLY when /api/a2a/jobs pushes via execute_workflow on a paid x402 quote (debounced 5min). No cron schedule.",
     nodes: wf.nodes,
     edges: wf.edges,
   });
