@@ -78,10 +78,10 @@ export default async function KeeperHubPage() {
     {
       kind: "heartbeat",
       title: "ens heartbeat",
-      schedule: "push from x402 · daily fallback",
+      schedule: "webhook only · push from x402",
       envVar: "KEEPERHUB_WORKFLOW_ID_HEARTBEAT",
       description:
-        "writes `last-seen-at` to the agent's ENS text record. fires push-style from /api/a2a/jobs on every paid x402 quote (debounced 5min) — one setText per real activity, not per cron tick. daily 06:00 UTC cron is the still-alive fallback if the agent goes idle.",
+        "writes `last-seen-at` to the agent's ENS text record. webhook trigger only — fires when /api/a2a/jobs pushes via execute_workflow on a paid x402 quote (debounced 5min). no cron schedule means zero gas when the agent is idle. /api/cron/ens-heartbeat on Vercel is the absolute fallback if both KeeperHub and x402 go silent.",
       recipe: [
         {
           kind: "trigger",
@@ -129,10 +129,10 @@ export default async function KeeperHubPage() {
     {
       kind: "reputation-cache",
       title: "reputation cache",
-      schedule: "push from x402 · daily fallback",
+      schedule: "webhook only · push from x402",
       envVar: "KEEPERHUB_WORKFLOW_ID_REPUTATION_CACHE",
       description:
-        "reads ERC-8004 feedbackCount and writes a compact summary into the `reputation-summary` ENS text record. fires push-style from /api/a2a/jobs on every paid x402 quote (debounced 5min). daily 06:00 UTC cron is the still-alive fallback.",
+        "reads ERC-8004 feedbackCount and writes a compact summary to the `reputation-summary` ENS text record. webhook trigger only — fires when /api/a2a/jobs pushes via execute_workflow on a paid x402 quote (debounced 5min). no cron schedule.",
       recipe: [
         {
           kind: "trigger",
