@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCronAuth, unauthorized } from "@/lib/cron-auth";
-import { recordCronTick, pushKeeperhubRun } from "@/lib/redis";
+import {
+  recordCronTick,
+  pushKeeperhubRun,
+  msSinceLastSettlement,
+} from "@/lib/redis";
 import { refreshHeartbeat } from "@/lib/ens";
 import { triggerKeeperHub } from "@/lib/keeperhub";
 
@@ -8,13 +12,25 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const ROUTE = "/api/cron/ens-heartbeat";
+const ACTIVITY_WINDOW_MS = 18 * 60 * 60 * 1000; // 18h
 
-/// Issue #7 — try KeeperHub first; if a heartbeat workflow is configured,
-/// the keeper executes the on-chain text-record write so the agent's
-/// scheduling is decentralized. Vercel cron stays as the fallback +
-/// liveness check, never a hard dependency.
+/// Daily safety-net only. The push-based heartbeat in /api/a2a/jobs fires
+/// on every paid x402 settlement (debounced 5min), so this cron is only
+/// needed when the agent has been idle for >18h. Skip otherwise — every
+/// setText costs Sepolia gas, no point writing the same near-zero
+/// timestamp delta over and over.
 export async function GET(req: NextRequest) {
   if (!verifyCronAuth(req)) return unauthorized();
+
+  const idleMs = await msSinceLastSettlement();
+  if (idleMs !== null && idleMs < ACTIVITY_WINDOW_MS) {
+    await recordCronTick(ROUTE, "ok");
+    return NextResponse.json({
+      ok: true,
+      skipped: "recent activity",
+      msSinceLastSettlement: idleMs,
+    });
+  }
 
   const kh = await triggerKeeperHub({
     kind: "heartbeat",

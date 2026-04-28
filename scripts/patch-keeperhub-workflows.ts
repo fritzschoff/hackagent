@@ -132,9 +132,6 @@ async function patchHeartbeat(apiKey: string) {
     { workflowId: id },
   );
 
-  // Fix the setText `value` arg: switch from {{$trigger.input.ts}} (which is
-  // not KeeperHub syntax) to {{@trigger-cron:Cron Trigger.data.ts}} (named output
-  // reference).
   for (const n of wf.nodes) {
     if (n.id === "web3-write") {
       const cfg = n.data.config;
@@ -145,10 +142,21 @@ async function patchHeartbeat(apiKey: string) {
       ]);
       console.log(`  patched value template → {{@trigger-cron:Cron Trigger.data.ts}}`);
     }
+    // Demote the cron from hourly to daily — push from /api/a2a/jobs is
+    // now the primary path, KeeperHub cron is a once-a-day safety net so
+    // the agent stays alive even if our Vercel app goes down.
+    if (n.id === "trigger-cron") {
+      const cfg = n.data.config;
+      cfg.scheduleCron = "0 6 * * *";
+      console.log(`  cron schedule → daily 06:00 UTC (was hourly)`);
+    }
   }
 
   await tool(apiKey, "update_workflow", {
     workflowId: id,
+    name: "Heartbeat (push from x402 + daily safety net)",
+    description:
+      "Writes last-seen-at to ENS. Primary trigger is push from /api/a2a/jobs on every paid quote (debounced 5min). Daily 06:00 UTC cron is the still-alive fallback.",
     nodes: wf.nodes,
     edges: wf.edges,
   });
@@ -254,8 +262,18 @@ async function patchReputationCache(apiKey: string) {
     `  rewired ${triggerId} → read-web3-1 → write-setText → webhook-1`,
   );
 
+  // Demote cron from hourly to daily — same reasoning as heartbeat.
+  if (triggerNode) {
+    const tcfg = triggerNode.data.config as Record<string, unknown>;
+    tcfg.scheduleCron = "0 6 * * *";
+    console.log(`  cron schedule → daily 06:00 UTC (was hourly)`);
+  }
+
   await tool(apiKey, "update_workflow", {
     workflowId: id,
+    name: "Reputation cache (push from x402 + daily safety net)",
+    description:
+      "Reads ERC-8004 feedbackCount and writes a compact summary to ENS reputation-summary. Primary trigger is push from /api/a2a/jobs on every paid quote (debounced 5min). Daily 06:00 UTC cron is the still-alive fallback.",
     nodes: wf.nodes,
     edges: wf.edges,
   });

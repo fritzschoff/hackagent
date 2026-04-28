@@ -19,11 +19,45 @@ export function getRedis(): Redis | null {
   return cached;
 }
 
+/// Atomic "fire at most once per `cooldownSec`" gate backed by Redis.
+/// Returns true the first time it's called within the cooldown window for
+/// the given key, false on every subsequent call until the window expires.
+/// Used by `/api/a2a/jobs` to debounce KeeperHub setText writes when many
+/// quotes settle in close succession — without this every paid quote
+/// would mint a new on-chain tx.
+export async function tryAcquireDebounce(
+  key: string,
+  cooldownSec: number,
+): Promise<boolean> {
+  const r = getRedis();
+  if (!r) return true;
+  // SET NX EX → atomic "set if absent, with expiry"
+  const res = await r.set(key, String(Date.now()), "EX", cooldownSec, "NX");
+  return res === "OK";
+}
+
 export async function pushJob(job: Job): Promise<void> {
   const r = getRedis();
   if (!r) return;
   await r.lpush("jobs:recent", JSON.stringify(job));
   await r.ltrim("jobs:recent", 0, 199);
+}
+
+/// Returns ms since the last x402 settlement, or null if there's no
+/// settled-payments history. Used by the daily safety-net crons to decide
+/// whether to fire (skip if there was activity in the last 18h).
+export async function msSinceLastSettlement(): Promise<number | null> {
+  const r = getRedis();
+  if (!r) return null;
+  const raw = await r.lrange("agent:settled-payments", 0, 0);
+  if (raw.length === 0) return null;
+  try {
+    const last = JSON.parse(raw[0]!) as { ts?: number };
+    if (typeof last.ts !== "number") return null;
+    return Date.now() - last.ts;
+  } catch {
+    return null;
+  }
 }
 
 export async function recordSettledPayment(args: {

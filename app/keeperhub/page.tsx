@@ -78,10 +78,10 @@ export default async function KeeperHubPage() {
     {
       kind: "heartbeat",
       title: "ens heartbeat",
-      schedule: "hourly",
+      schedule: "push from x402 · daily fallback",
       envVar: "KEEPERHUB_WORKFLOW_ID_HEARTBEAT",
       description:
-        "writes a `last-seen-at` timestamp to the agent's ENS text records so the dashboard can show liveness without trusting our cron infra. one tx per run.",
+        "writes `last-seen-at` to the agent's ENS text record. fires push-style from /api/a2a/jobs on every paid x402 quote (debounced 5min) — one setText per real activity, not per cron tick. daily 06:00 UTC cron is the still-alive fallback if the agent goes idle.",
       recipe: [
         {
           kind: "trigger",
@@ -129,10 +129,10 @@ export default async function KeeperHubPage() {
     {
       kind: "reputation-cache",
       title: "reputation cache",
-      schedule: "hourly",
+      schedule: "push from x402 · daily fallback",
       envVar: "KEEPERHUB_WORKFLOW_ID_REPUTATION_CACHE",
       description:
-        "reads ERC-8004 feedback count + score, writes a compact summary to the `reputation-summary` ENS text record. one tx, idempotent (skip the write when value is unchanged).",
+        "reads ERC-8004 feedbackCount and writes a compact summary into the `reputation-summary` ENS text record. fires push-style from /api/a2a/jobs on every paid x402 quote (debounced 5min). daily 06:00 UTC cron is the still-alive fallback.",
       recipe: [
         {
           kind: "trigger",
