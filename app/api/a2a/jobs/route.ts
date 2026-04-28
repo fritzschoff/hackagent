@@ -3,11 +3,16 @@ import { withX402 } from "@x402/next";
 import { waitUntil } from "@vercel/functions";
 import { getResourceServer, X402_NETWORK } from "@/lib/x402";
 import { quoteSwap } from "@/lib/uniswap";
-import { pushJob, pushKeeperhubRun, pushPricewatchCall } from "@/lib/redis";
+import {
+  pushJob,
+  pushKeeperhubRun,
+  pushPricewatchCall,
+  tryAcquireDebounce,
+} from "@/lib/redis";
 import { tryLoadAccount } from "@/lib/wallets";
 import { SwapIntent, type Job } from "@/lib/types";
 import { appendJobLog } from "@/lib/zg-storage";
-import { callSwapWorkflow } from "@/lib/keeperhub";
+import { callSwapWorkflow, triggerKeeperHub } from "@/lib/keeperhub";
 import { reasonAboutQuote } from "@/lib/zg-compute";
 import { callPaidJson } from "@/lib/x402-client";
 import { postFeedback } from "@/lib/erc8004";
@@ -187,6 +192,64 @@ const handler = async (req: NextRequest): Promise<NextResponse> => {
       .catch((err) => {
         console.error(`[keeperhub] job=${job.id} failed:`, err?.message ?? err);
       }),
+  );
+
+  // Push-based heartbeat + reputation cache: every paid x402 quote triggers
+  // a setText on chain through KeeperHub, instead of the old hourly cron
+  // burning gas with no activity. Debounced 5min so a burst of quotes does
+  // not produce a burst of setText txs.
+  waitUntil(
+    (async () => {
+      try {
+        const heartbeatOk = await tryAcquireDebounce(
+          "keeperhub:debounce:heartbeat",
+          300,
+        );
+        if (heartbeatOk) {
+          const r = await triggerKeeperHub({
+            kind: "heartbeat",
+            input: { ts: Date.now() },
+            pollForTx: false,
+          });
+          if (r) {
+            await pushKeeperhubRun({
+              kind: "heartbeat",
+              jobId: `push-${job.id}`,
+              workflowRunId: r.workflowRunId,
+              txHash: r.txHash,
+              summary: "ens last-seen-at (push from x402)",
+              ts: Date.now(),
+            });
+          }
+        }
+        const repOk = await tryAcquireDebounce(
+          "keeperhub:debounce:reputation-cache",
+          300,
+        );
+        if (repOk) {
+          const r = await triggerKeeperHub({
+            kind: "reputation-cache",
+            input: { agentId: 1, ts: Date.now() },
+            pollForTx: false,
+          });
+          if (r) {
+            await pushKeeperhubRun({
+              kind: "reputation-cache",
+              jobId: `push-${job.id}`,
+              workflowRunId: r.workflowRunId,
+              txHash: r.txHash,
+              summary: "ens reputation-summary (push from x402)",
+              ts: Date.now(),
+            });
+          }
+        }
+      } catch (err) {
+        console.error(
+          "[keeperhub-push] failed:",
+          err instanceof Error ? err.message : err,
+        );
+      }
+    })(),
   );
 
   return NextResponse.json({ ok: true, job });

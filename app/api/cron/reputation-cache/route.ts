@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCronAuth, unauthorized } from "@/lib/cron-auth";
-import { recordCronTick, getRedis, pushKeeperhubRun } from "@/lib/redis";
+import {
+  recordCronTick,
+  getRedis,
+  pushKeeperhubRun,
+  msSinceLastSettlement,
+} from "@/lib/redis";
 import { getSepoliaAddresses } from "@/lib/edge-config";
 import {
   computeReputationSummary,
@@ -15,6 +20,7 @@ export const maxDuration = 60;
 const ROUTE = "/api/cron/reputation-cache";
 const ENS_TEXT_KEY = "reputation-summary";
 const REDIS_LAST_KEY = "ens:reputation-summary:last";
+const ACTIVITY_WINDOW_MS = 18 * 60 * 60 * 1000; // 18h
 
 export async function GET(req: NextRequest) {
   if (!verifyCronAuth(req)) return unauthorized();
@@ -24,6 +30,20 @@ export async function GET(req: NextRequest) {
   if (!agentId || agentId === 0) {
     await recordCronTick(ROUTE, "ok");
     return NextResponse.json({ ok: true, skipped: "agentId missing" });
+  }
+
+  // Daily safety-net only. The push-based trigger in /api/a2a/jobs fires
+  // on every paid x402 settlement, so this cron only matters when the
+  // agent has been idle for >18h — otherwise the on-chain summary is
+  // already fresh and rewriting it just wastes gas.
+  const idleMs = await msSinceLastSettlement();
+  if (idleMs !== null && idleMs < ACTIVITY_WINDOW_MS) {
+    await recordCronTick(ROUTE, "ok");
+    return NextResponse.json({
+      ok: true,
+      skipped: "recent activity",
+      msSinceLastSettlement: idleMs,
+    });
   }
 
   // Issue #7 — KeeperHub-first execution. If the workflow is configured,
