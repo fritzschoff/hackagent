@@ -199,25 +199,22 @@ async function computeTextRecord(
     case "tvl":
       return "0";
 
-    // ---- inft-tradeable: on-chain check via encryptedMemoryRoot ----
-    // The AgentINFT ABI does not expose `memoryReencrypted`; we proxy it by
-    // checking whether encryptedMemoryRoot is non-zero (bytes32(0) == not set).
+    // ---- inft-tradeable: AgentINFT.memoryReencrypted(tokenId) ----
+    // True iff the last transfer went through the proof path (oracle
+    // re-encrypted memory to current owner). False after a raw transferFrom
+    // bypass — the new owner cannot decrypt the memory blob.
     case "inft-tradeable": {
       if (agent.tokenId === null) return "0";
       try {
         const addrs = await getSepoliaAddresses();
         if (!addrs.inftAddress) return "0";
-        const root = (await sepoliaPublicClient().readContract({
+        const ok = (await sepoliaPublicClient().readContract({
           address: addrs.inftAddress as `0x${string}`,
           abi: AgentINFTAbi as readonly unknown[],
-          functionName: "encryptedMemoryRoot",
+          functionName: "memoryReencrypted",
           args: [BigInt(agent.tokenId)],
-        })) as `0x${string}`;
-        // Non-zero root means memory has been set (tradeable).
-        const isSet =
-          root !==
-          "0x0000000000000000000000000000000000000000000000000000000000000000";
-        return isSet ? "1" : "0";
+        })) as boolean;
+        return ok ? "1" : "0";
       } catch {
         return "0";
       }
