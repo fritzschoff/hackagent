@@ -227,6 +227,61 @@ async function uploadSegments(
   }
 }
 
+export async function writeBytes(
+  bytes: Uint8Array,
+): Promise<WriteResult | null> {
+  const zg = getZg();
+  if (!zg) return null;
+  const file = new MemData(bytes);
+
+  const [tree, treeErr] = await file.merkleTree();
+  if (treeErr || !tree) {
+    console.error(
+      "[zg-storage] merkle tree failed:",
+      treeErr?.message ?? "unknown",
+    );
+    return null;
+  }
+  const rootHash = tree.rootHash();
+  if (!rootHash) {
+    console.error("[zg-storage] empty rootHash from SDK");
+    return null;
+  }
+
+  const result: WriteResult = {
+    rootHash,
+    txHash: "",
+    anchored: false,
+    segmentsUploaded: false,
+  };
+
+  try {
+    const anchor = await anchorOnChain(rootHash, bytes.byteLength);
+    if (!anchor) return result;
+    result.txHash = anchor.txHash;
+    result.anchored = true;
+  } catch (err) {
+    console.error(
+      "[zg-storage] anchor failed:",
+      err instanceof Error ? err.message : err,
+    );
+    return result;
+  }
+
+  const indexed = await waitForFileInfoOnNodes(zg, rootHash);
+  if (!indexed) {
+    console.warn(
+      `[zg-storage] FileInfo not visible to storage nodes within ${
+        (FILE_INFO_POLL_ATTEMPTS * FILE_INFO_POLL_INTERVAL_MS) / 1000
+      }s for root=${rootHash}; segments skipped`,
+    );
+    return result;
+  }
+
+  result.segmentsUploaded = await uploadSegments(zg, file);
+  return result;
+}
+
 async function writeBlob(payload: object): Promise<WriteResult | null> {
   const zg = getZg();
   if (!zg) return null;

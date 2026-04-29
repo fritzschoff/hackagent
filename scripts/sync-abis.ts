@@ -7,6 +7,7 @@ const CONTRACTS = [
   "ValidationRegistry",
   "IdentityRegistryV2",
   "AgentINFT",
+  "AgentINFTVerifier",
   "AgentBids",
   "AgentShares",
   "RevenueSplitter",

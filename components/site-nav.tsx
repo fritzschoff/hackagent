@@ -9,7 +9,7 @@ const ITEMS = [
   { href: "/merger", label: "m&a", key: "merger" },
   { href: "/compliance", label: "compliance", key: "compliance" },
   { href: "/keeperhub", label: "keeperhub", key: "keeperhub" },
-  { href: "/faq", label: "faq", key: "faq" },
+  { href: "/docs", label: "docs", key: "docs" },
 ] as const;
 
 export default function SiteNav({

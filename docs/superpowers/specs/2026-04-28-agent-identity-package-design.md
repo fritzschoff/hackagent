@@ -80,20 +80,23 @@ Both the INFT oracle (W1) and the CCIP-Read gateway (W2) are EOA-signing service
 
 Implements `IERC7857DataVerifier` matching 0G's reference layout. Proof byte layout for the **private-data, TEE-flavor** case (the only case we use):
 
+> **Spec amendment (2026-04-29):** `tokenId (uint256, 32B)` inserted at offset 1; all subsequent offsets shifted by 32. Rationale: tokenId in the proof is needed because the verifier's interface receives only `bytes[]`; AgentINFT cross-checks against its own state.
+
 | Offset | Length | Field |
 |---|---|---|
 | 0 | 1 | flags (bit 7 = isTEE = 0; bit 6 = isPrivate = 1) |
-| 1 | 65 | accessibility proof (ECDSA sig over `keccak256(newDataHash \|\| oldDataHash \|\| nonce)` wrapped in EIP-191 `\x19Ethereum Signed Message:\n66`) |
-| 66 | 48 | nonce (used as replay-protection key in `usedNonces`) |
-| 114 | 32 | newDataHash |
-| 146 | 32 | oldDataHash |
-| 178 | 16 | sealedKey (first 16 bytes of ECIES ciphertext block) |
-| 194 | 33 | ephemeralPubkey (compressed secp256k1) |
-| 227 | 12 | wrap IV |
-| 239 | 16 | wrap GCM tag |
-| 255 | 2 | newUriLength (uint16, big-endian) |
-| 257 | N | newUri (UTF-8) |
-| 257+N | 65 | oracle attestation: ECDSA over `keccak256(tokenId \|\| oldDataHash \|\| newDataHash \|\| sealedKey \|\| keccak256(newUri) \|\| nonce)` wrapped in EIP-191 |
+| 1 | 32 | tokenId (uint256, big-endian) |
+| 33 | 65 | accessibility proof (ECDSA sig over `keccak256(newDataHash \|\| oldDataHash \|\| nonce)` wrapped in EIP-191 `\x19Ethereum Signed Message:\n32`) |
+| 98 | 48 | nonce (used as replay-protection key in `usedNonces`) |
+| 146 | 32 | newDataHash |
+| 178 | 32 | oldDataHash |
+| 210 | 16 | sealedKey (first 16 bytes of ECIES ciphertext block) |
+| 226 | 33 | ephemeralPubkey (compressed secp256k1) |
+| 259 | 12 | wrap IV |
+| 271 | 16 | wrap GCM tag |
+| 287 | 2 | newUriLength (uint16, big-endian) |
+| 289 | N | newUri (UTF-8) |
+| 289+N | 65 | oracle attestation: ECDSA over `keccak256(tokenId \|\| oldDataHash \|\| newDataHash \|\| sealedKey \|\| keccak256(newUri) \|\| nonce)` wrapped in EIP-191 |
 
 State:
 

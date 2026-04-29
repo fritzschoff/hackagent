@@ -4,6 +4,7 @@ import { AGENT_ENS } from "@/lib/ens";
 import { readStandingBids, readBidHistory, formatUsdc } from "@/lib/bids";
 import BidControls from "./bid-controls";
 import SiteNav from "@/components/site-nav";
+import MemoryStaleBadge from "@/components/memory-stale-badge";
 
 export const revalidate = 30;
 
@@ -84,6 +85,7 @@ export default async function InftPage() {
         </section>
       ) : (
         <section className="mt-10 space-y-12 reveal reveal-2">
+          {/* ── Identity cells ── */}
           <div className="stat-grid">
             <Cell label="token id" value={`#${inft.tokenId}`} mono />
             <Cell label="agent id" value={`#${inft.agentId}`} mono />
@@ -104,25 +106,17 @@ export default async function InftPage() {
               accent={!inft.walletCleared}
               danger={inft.walletCleared}
             />
+            <Cell
+              label="key rotations"
+              value={inft.rotations.toString()}
+              mono
+            />
           </div>
 
-          <div>
-            <div className="flex items-baseline gap-5 mb-5">
-              <span className="section-marker">§01</span>
-              <div>
-                <h2 className="display text-2xl">encrypted memory</h2>
-                <p className="tag mt-1">0G Storage · turbo testnet</p>
-              </div>
-            </div>
-            <div className="card-flat">
-              <dl className="grid grid-cols-1 gap-3 text-xs font-mono">
-                <Row label="merkle root" value={inft.encryptedMemoryRoot} />
-                <Row label="og:// uri" value={inft.encryptedMemoryUri} />
-                <Row label="tokenURI" value={inft.tokenUri} />
-              </dl>
-            </div>
-          </div>
+          {/* ── Stale memory badge ── */}
+          <MemoryStaleBadge memoryReencrypted={inft.memoryReencrypted} />
 
+          {/* ── Wallet cleared warning ── */}
           {inft.walletCleared ? (
             <div className="card-flat border-(--color-amber)! p-5 space-y-2">
               <p className="display-italic text-(--color-amber) text-lg">
@@ -138,6 +132,37 @@ export default async function InftPage() {
             </div>
           ) : null}
 
+          {/* ── Encrypted memory ── */}
+          <div>
+            <div className="flex items-baseline gap-5 mb-5">
+              <span className="section-marker">§01</span>
+              <div>
+                <h2 className="display text-2xl">encrypted memory</h2>
+                <p className="tag mt-1">0G Storage · turbo testnet</p>
+              </div>
+            </div>
+            <div className="card-flat">
+              <dl className="grid grid-cols-1 gap-3 text-xs font-mono">
+                <Row label="merkle root" value={inft.encryptedMemoryRoot} />
+                <Row label="og:// uri" value={inft.encryptedMemoryUri} />
+                <Row label="tokenURI" value={inft.tokenUri} />
+                <Row
+                  label="memory fresh"
+                  value={inft.memoryReencrypted ? "yes" : "stale"}
+                />
+                <Row
+                  label="verifier"
+                  value={inft.verifierAddress ? inft.verifierAddress : "not set"}
+                />
+                <Row
+                  label="oracle"
+                  value={inft.oracleAddress ? inft.oracleAddress : "not set"}
+                />
+              </dl>
+            </div>
+          </div>
+
+          {/* ── Bidding ── */}
           <div>
             <div className="flex items-baseline gap-5 mb-5">
               <span className="section-marker">§02</span>
@@ -196,6 +221,7 @@ export default async function InftPage() {
                 inftAddress={inftAddress}
                 usdcAddress={usdcAddress}
                 inftOwner={inft.owner}
+                oracleAddress={inft.oracleAddress}
                 standingBids={standingBids.map((b) => ({
                   bidder: b.bidder,
                   amount: b.amount.toString(),
@@ -208,6 +234,7 @@ export default async function InftPage() {
             )}
           </div>
 
+          {/* ── Bid history ── */}
           {bidHistory.length > 0 ? (
             <div>
               <div className="flex items-baseline gap-5 mb-5">
@@ -258,6 +285,7 @@ export default async function InftPage() {
             </div>
           ) : null}
 
+          {/* ── Contract links ── */}
           <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs">
             <a
               href={`${SEPOLIA_ETHERSCAN}/address/${inftAddress}`}
@@ -275,6 +303,16 @@ export default async function InftPage() {
             >
               IdentityRegistryV2 →
             </a>
+            {inft.verifierAddress ? (
+              <a
+                href={`${SEPOLIA_ETHERSCAN}/address/${inft.verifierAddress}`}
+                target="_blank"
+                rel="noreferrer"
+                className="link"
+              >
+                Verifier →
+              </a>
+            ) : null}
             {bidsAddress ? (
               <a
                 href={`${SEPOLIA_ETHERSCAN}/address/${bidsAddress}`}

@@ -41,7 +41,7 @@
       {
         "name": "",
         "type": "address",
-        "internalType": "contract IERC721"
+        "internalType": "contract IAgentINFTDelegation"
       }
     ],
     "stateMutability": "view"
@@ -125,6 +125,11 @@
             "internalType": "bytes32"
           },
           {
+            "name": "sealedMemoryUri",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
             "name": "mergedAt",
             "type": "uint64",
             "internalType": "uint64"
@@ -173,6 +178,40 @@
   },
   {
     "type": "function",
+    "name": "onERC721Received",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes4",
+        "internalType": "bytes4"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
     "name": "recordMerge",
     "inputs": [
       {
@@ -191,6 +230,11 @@
         "internalType": "uint256"
       },
       {
+        "name": "proof1",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
         "name": "sourceAgentId2",
         "type": "uint256",
         "internalType": "uint256"
@@ -201,9 +245,19 @@
         "internalType": "uint256"
       },
       {
+        "name": "proof2",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
         "name": "sealedMemoryRoot",
         "type": "bytes32",
         "internalType": "bytes32"
+      },
+      {
+        "name": "sealedMemoryUri",
+        "type": "string",
+        "internalType": "string"
       }
     ],
     "outputs": [
@@ -260,6 +314,12 @@
         "type": "bytes32",
         "indexed": false,
         "internalType": "bytes32"
+      },
+      {
+        "name": "sealedMemoryUri",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
       },
       {
         "name": "recordedBy",
