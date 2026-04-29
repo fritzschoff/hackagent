@@ -59,7 +59,7 @@ contract OffchainResolverTest is Test {
     }
 
     // ------------------------------------------------------------------ Task 3 tests
-    function test_resolveWithProof_validSignature_returnsResult() public {
+    function test_resolveWithProof_validSignature_returnsResult() public view {
         bytes memory result = abi.encode("hello world");
         bytes memory extraData = hex"deadbeef";
         uint64 expires = uint64(block.timestamp + 60);
