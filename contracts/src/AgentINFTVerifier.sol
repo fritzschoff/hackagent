@@ -27,6 +27,12 @@ contract AgentINFTVerifier is IERC7857DataVerifier {
         return EXPECTED_ORACLE;
     }
 
+    /// @notice Verify one or more mint (preimage) proofs.
+    /// @dev This implementation reverts on any failed proof rather than returning isValid: false.
+    ///      The 0G interface's per-proof flag is preserved for compatibility but always set to true
+    ///      on returned outputs. Callers must batch only proofs they expect to succeed; one bad
+    ///      proof reverts the entire call.
+    ///
     /// Mint proof layout: [1 flags | 65 sig | 32 dataHash | 48 nonce] = 146B
     /// Signature is EIP-191 over keccak256("inft-mint-v1" || dataHash || nonce).
     function verifyPreimage(bytes[] calldata _proofs)
@@ -68,6 +74,12 @@ contract AgentINFTVerifier is IERC7857DataVerifier {
         return outputs;
     }
 
+    /// @notice Verify one or more transfer-validity proofs.
+    /// @dev This implementation reverts on any failed proof rather than returning isValid: false.
+    ///      The 0G interface's per-proof flag is preserved for compatibility but always set to true
+    ///      on returned outputs. Callers must batch only proofs they expect to succeed; one bad
+    ///      proof reverts the entire call.
+    ///
     /// Transfer proof layout (private TEE flavor, corrected layout):
     ///   [0]        flags (bit7=TEE=0, bit6=isPrivate=1) — must be 0x40
     ///   [1..33)    tokenId (uint256, 32B)
