@@ -81,22 +81,33 @@ export async function resolveAgentEns(opts?: {
     }
   }
 
+  // Dynamic fields (last-seen-at, reputation-summary) live in Redis now —
+  // KeeperHub heartbeat + reputation-cache workflows pulse those keys via
+  // /api/keeperhub/{heartbeat,reputation}-pulse instead of writing to chain.
+  // On-chain text records are used only as a fallback for cold reads.
+  const dynamicLastSeen = redis
+    ? await redis.get(`ens:dynamic:${AGENT_ID_DEFAULT}:last-seen-at`).catch(() => null)
+    : null;
+  const dynamicRepSummary = redis
+    ? await redis.get(`ens:dynamic:${AGENT_ID_DEFAULT}:reputation-summary`).catch(() => null)
+    : null;
+
   const [
     address,
     agentCardUrl,
     registration,
     description,
     url,
-    lastSeen,
-    reputationSummary,
+    onChainLastSeen,
+    onChainRepSummary,
   ] = await Promise.all([
     readEnsAddressSafe(AGENT_ENS),
     readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.agentCard),
     readEnsTextSafe(AGENT_ENS, REGISTRATION_KEY),
     readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.description),
     readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.url),
-    readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.lastSeenAt),
-    readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.reputationSummary),
+    dynamicLastSeen ? Promise.resolve(null) : readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.lastSeenAt),
+    dynamicRepSummary ? Promise.resolve(null) : readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.reputationSummary),
   ]);
 
   const resolved: ResolvedEns = {
@@ -106,8 +117,8 @@ export async function resolveAgentEns(opts?: {
     registrationRecord: registration,
     description,
     url,
-    lastSeenAt: lastSeen,
-    reputationSummary,
+    lastSeenAt: dynamicLastSeen ?? onChainLastSeen,
+    reputationSummary: dynamicRepSummary ?? onChainRepSummary,
     ensip25Key: REGISTRATION_KEY,
   };
 
