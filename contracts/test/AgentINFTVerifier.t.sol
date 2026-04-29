@@ -201,4 +201,53 @@ contract AgentINFTVerifierTest is Test {
         assertEq(out[0].receiver, receiver);
         assertEq(out[0].sealedKey, sealedKey);
     }
+
+    function test_verifyTransferValidity_invalidOracleSig_reverts() public {
+        uint256 receiverPk = 0xBEEF;
+        bytes32 oldHash = keccak256("old");
+        bytes32 newHash = keccak256("new");
+        bytes16 sealedKey = bytes16(keccak256("k"));
+        bytes memory nonce = abi.encodePacked(uint256(8), uint128(0));
+
+        bytes memory proof = _buildTransferProof(1, oldHash, newHash, sealedKey, nonce, "og://x", receiverPk);
+        // Corrupt the last byte of the oracle attestation sig (last byte = v)
+        proof[proof.length - 1] = bytes1(uint8(proof[proof.length - 1]) ^ 0x01);
+        bytes[] memory proofs = new bytes[](1);
+        proofs[0] = proof;
+        vm.expectRevert(AgentINFTVerifier.InvalidOracleSignature.selector);
+        verifier.verifyTransferValidity(proofs);
+    }
+
+    function test_verifyTransferValidity_replay_reverts() public {
+        uint256 receiverPk = 0xBEEF;
+        bytes32 oldHash = keccak256("old2");
+        bytes32 newHash = keccak256("new2");
+        bytes memory nonce = abi.encodePacked(uint256(9), uint128(0));
+        bytes memory proof = _buildTransferProof(2, oldHash, newHash, bytes16(0), nonce, "og://y", receiverPk);
+        bytes[] memory proofs = new bytes[](1);
+        proofs[0] = proof;
+        verifier.verifyTransferValidity(proofs);
+        vm.expectRevert(AgentINFTVerifier.NonceReplay.selector);
+        verifier.verifyTransferValidity(proofs);
+    }
+
+    function test_verifyTransferValidity_wrongFlags_reverts() public {
+        uint256 receiverPk = 0xBEEF;
+        bytes memory nonce = abi.encodePacked(uint256(10), uint128(0));
+        bytes memory proof = _buildTransferProof(3, keccak256("a"), keccak256("b"), bytes16(0), nonce, "og://z", receiverPk);
+        proof[0] = 0x80; // ZKP flag, not TEE
+        bytes[] memory proofs = new bytes[](1);
+        proofs[0] = proof;
+        vm.expectRevert(AgentINFTVerifier.WrongFlags.selector);
+        verifier.verifyTransferValidity(proofs);
+    }
+
+    function test_verifyTransferValidity_truncatedProof_reverts() public {
+        bytes memory proof = new bytes(100);
+        proof[0] = 0x40;
+        bytes[] memory proofs = new bytes[](1);
+        proofs[0] = proof;
+        vm.expectRevert(AgentINFTVerifier.InvalidProofLength.selector);
+        verifier.verifyTransferValidity(proofs);
+    }
 }
