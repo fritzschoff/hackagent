@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IdentityRegistryV2} from "../src/IdentityRegistryV2.sol";
 import {AgentINFT} from "../src/AgentINFT.sol";
+import {AgentINFTVerifier} from "../src/AgentINFTVerifier.sol";
 import {AgentBids} from "../src/AgentBids.sol";
 
 contract MockUSDC is ERC20 {
@@ -19,6 +20,7 @@ contract MockUSDC is ERC20 {
 
 contract AgentBidsTest is Test {
     IdentityRegistryV2 internal reg;
+    AgentINFTVerifier internal verifier;
     AgentINFT internal inft;
     AgentBids internal bids;
     MockUSDC internal usdc;
@@ -27,22 +29,37 @@ contract AgentBidsTest is Test {
     address internal alice = address(0xA110);
     address internal bob = address(0xB0B);
     address internal carol = address(0xCA70);
+    uint256 internal oraclePk = 0xA11CE;
+    address internal oracle;
 
     uint256 internal constant TOKEN_ID = 1;
 
     function setUp() public {
+        oracle = vm.addr(oraclePk);
         vm.startPrank(deployer);
         reg = new IdentityRegistryV2();
-        inft = new AgentINFT(address(reg), "https://x.test/");
+        verifier = new AgentINFTVerifier(oracle);
+        inft = new AgentINFT(address(reg), "https://x.test/", address(verifier), oracle);
         reg.setInft(address(inft));
         reg.registerByDeployer(alice, "alice.test", alice);
         usdc = new MockUSDC();
         bids = new AgentBids(address(inft), address(usdc));
-        inft.mint(alice, 1, bytes32("root"), "og://root");
+        // Build a valid mint proof
+        bytes32 root = keccak256("root");
+        bytes memory nonce = abi.encodePacked(uint256(1), uint128(0));
+        bytes memory proof = _mintProof(root, nonce);
+        inft.mint(alice, 1, proof);
         vm.stopPrank();
 
         usdc.mint(bob, 100_000_000); // 100 USDC
         usdc.mint(carol, 100_000_000);
+    }
+
+    function _mintProof(bytes32 dataHash, bytes memory nonce) internal view returns (bytes memory) {
+        bytes32 messageHash = keccak256(abi.encodePacked("inft-mint-v1", dataHash, nonce));
+        bytes32 prefixed = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(oraclePk, prefixed);
+        return abi.encodePacked(bytes1(0x00), abi.encodePacked(r, s, v), dataHash, nonce);
     }
 
     function test_placeBid_escrowsAndRecordsBidder() public {

@@ -6,12 +6,14 @@ import {IdentityRegistryV2} from "../src/IdentityRegistryV2.sol";
 import {ReputationRegistry} from "../src/ReputationRegistry.sol";
 import {IdentityRegistry} from "../src/IdentityRegistry.sol";
 import {AgentINFT} from "../src/AgentINFT.sol";
+import {AgentINFTVerifier} from "../src/AgentINFTVerifier.sol";
 import {AgentMerger} from "../src/AgentMerger.sol";
 
 contract AgentMergerTest is Test {
     IdentityRegistry internal identityV1;
     IdentityRegistryV2 internal identityV2;
     ReputationRegistry internal reputation;
+    AgentINFTVerifier internal verifier;
     AgentINFT internal inft;
     AgentMerger internal merger;
 
@@ -20,15 +22,26 @@ contract AgentMergerTest is Test {
     address internal bob = address(0xB0B);
     address internal mergedAgent = address(0xCAFE);
     address internal client = address(0xC11);
+    uint256 internal oraclePk = 0xA11CE;
+    address internal oracle;
+
+    function _mintProof(bytes32 dataHash, bytes memory nonce) internal view returns (bytes memory) {
+        bytes32 messageHash = keccak256(abi.encodePacked("inft-mint-v1", dataHash, nonce));
+        bytes32 prefixed = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(oraclePk, prefixed);
+        return abi.encodePacked(bytes1(0x00), abi.encodePacked(r, s, v), dataHash, nonce);
+    }
 
     function setUp() public {
+        oracle = vm.addr(oraclePk);
         // V1 reputation lives on the v1 IdentityRegistry. V2 is what the INFT
         // hooks back into. We use both to validate the cross-chain-of-trust.
         vm.startPrank(deployer);
         identityV1 = new IdentityRegistry();
         reputation = new ReputationRegistry(address(identityV1));
         identityV2 = new IdentityRegistryV2();
-        inft = new AgentINFT(address(identityV2), "https://x.test/");
+        verifier = new AgentINFTVerifier(oracle);
+        inft = new AgentINFT(address(identityV2), "https://x.test/", address(verifier), oracle);
         identityV2.setInft(address(inft));
 
         // Register all three agents in V1 (where ReputationRegistry lives) and
@@ -51,8 +64,8 @@ contract AgentMergerTest is Test {
         );
 
         // Mint INFTs for alice (agentId=1 in V2) and bob (agentId=2).
-        inft.mint(alice, 1, bytes32("alice-mem"), "og://alice");
-        inft.mint(bob, 2, bytes32("bob-mem"), "og://bob");
+        inft.mint(alice, 1, _mintProof(keccak256("alice-mem"), abi.encodePacked(uint256(1), uint128(0))));
+        inft.mint(bob, 2, _mintProof(keccak256("bob-mem"), abi.encodePacked(uint256(2), uint128(0))));
 
         merger = new AgentMerger(
             address(identityV1),
