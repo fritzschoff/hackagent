@@ -62,6 +62,8 @@ contract DeployINFT is Script {
         _writeDeploymentJson(
             address(reg),
             address(inft),
+            address(verifier),
+            oracleAddr,
             agentId,
             domain,
             tradewiseAddress,
@@ -73,6 +75,8 @@ contract DeployINFT is Script {
     function _writeDeploymentJson(
         address reg,
         address inft,
+        address verifier,
+        address oracleAddr,
         uint256 agentId,
         string memory domain,
         address tradewiseAddress,
@@ -85,6 +89,10 @@ contract DeployINFT is Script {
             vm.toString(reg),
             '","agentInft":"',
             vm.toString(inft),
+            '","agentInftVerifier":"',
+            vm.toString(verifier),
+            '","inftOracle":"',
+            vm.toString(oracleAddr),
             '","agentId":',
             vm.toString(agentId)
         );

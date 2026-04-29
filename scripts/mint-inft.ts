@@ -1,19 +1,19 @@
 /**
- * Mints the tradewise INFT pointing at the agent's encrypted memory blob on
- * 0G Storage.
+ * Mints the tradewise INFT, sealing the agent's memory blob via the oracle
+ * library directly (no HTTP).
  *
  *   pnpm tsx scripts/mint-inft.ts
  *
- * For demo purposes the "encrypted" blob is just a sealed JSON written to 0G
- * Storage via the existing writeBlob path; real ERC-7857 demands TEE-attested
- * re-encryption on transfer, which is left as future work.
+ * Pulls AES-128 key store, encrypts the memory blob with AES-128-GCM, anchors
+ * the ciphertext to 0G Storage, builds an EIP-191 mintProof signed by
+ * INFT_ORACLE_PK, and submits the on-chain mint call.
  *
- * Sepolia signer: PRICEWATCH_PK (the deployer of V2 + INFT — has the gas).
- * 0G Galileo signer: AGENT_PK / ZG_PRIVATE_KEY (has Galileo OG balance).
+ * Sepolia signer: PRICEWATCH_PK (the deployer of V2 + INFT).
+ * 0G Galileo signer: AGENT_PK / ZG_PRIVATE_KEY (Galileo OG balance for the anchor).
  *
- * Required env: PRICEWATCH_PK, AGENT_PK, SEPOLIA_RPC_URL, ZG_GALILEO_RPC_URL,
- * INFT_ADDRESS, INFT_AGENT_ID. Optional: INFT_MINT_TO (default: user's demo
- * wallet 0x71226c538679eD4A72E803b3E2C93aD7403DA094).
+ * Required env: PRICEWATCH_PK, AGENT_PK, INFT_ORACLE_PK, SEPOLIA_RPC_URL,
+ * ZG_GALILEO_RPC_URL, INFT_ADDRESS, INFT_AGENT_ID, REDIS_URL.
+ * Optional: INFT_MINT_TO (default: user's demo wallet).
  */
 import {
   createPublicClient,
@@ -25,7 +25,14 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { sepolia } from "viem/chains";
 import AgentINFTAbi from "../lib/abis/AgentINFT.json";
-import { writeState } from "../lib/zg-storage";
+import {
+  aesKeyFresh,
+  encryptBlob,
+  anchorBlob,
+  buildMintProof,
+} from "../lib/inft-oracle";
+import { storeKey } from "../lib/inft-redis";
+import { hexToBytes, bytesToHex } from "@noble/curves/utils.js";
 
 const DEFAULT_MINT_TO: Address =
   "0x71226c538679eD4A72E803b3E2C93aD7403DA094";
@@ -47,6 +54,9 @@ async function main() {
     throw new Error(`invalid INFT_MINT_TO: ${mintToRaw}`);
   }
   const mintTo = mintToRaw as Address;
+
+  envOrThrow("INFT_ORACLE_PK");
+  envOrThrow("REDIS_URL");
 
   const account = privateKeyToAccount(pk);
   const publicClient = createPublicClient({
@@ -75,6 +85,15 @@ async function main() {
     return;
   }
 
+  const nextTokenId = (await publicClient.readContract({
+    address: inftAddress,
+    abi: AgentINFTAbi,
+    functionName: "totalSupply",
+    args: [],
+  }).catch(() => 0n)) as bigint;
+  const tokenIdPredicted = nextTokenId + 1n;
+  console.log(`predicted tokenId:         ${tokenIdPredicted}`);
+
   const memoryBlob = {
     agent: "tradewise.agentlab.eth",
     role: "uniswap quote concierge",
@@ -84,23 +103,32 @@ async function main() {
     sealedAt: new Date().toISOString(),
   };
 
-  console.log("anchoring memory blob to 0G Storage...");
-  const written = await writeState("inft-memory", memoryBlob);
-  if (!written?.rootHash) {
-    throw new Error("0G Storage anchor failed; cannot mint");
-  }
-  const root = written.rootHash as Hex;
-  const uri = `og://${written.rootHash}`;
-  console.log(`memory rootHash:  ${root}`);
-  console.log(`memory uri:       ${uri}`);
-  console.log(`anchored=${written.anchored} segments=${written.segmentsUploaded}`);
+  console.log("generating fresh AES-128 key + encrypting memory blob...");
+  const aesKey = aesKeyFresh();
+  const ciphertext = encryptBlob(memoryBlob, aesKey);
+
+  console.log("anchoring ciphertext to 0G Storage...");
+  const anchored = await anchorBlob(ciphertext);
+  console.log(`memory rootHash:  ${anchored.root}`);
+  console.log(`memory uri:       ${anchored.uri}`);
+  console.log(`anchor tx:        ${anchored.txHash}`);
+
+  console.log("storing AES key in Redis (KEK-wrapped)...");
+  await storeKey(tokenIdPredicted, aesKey);
+
+  console.log("building EIP-191 mintProof signed by oracle key...");
+  const dataHash = hexToBytes(anchored.root.slice(2));
+  const nonce = new Uint8Array(48);
+  crypto.getRandomValues(nonce);
+  const mintProofBytes = buildMintProof(dataHash, nonce);
+  const mintProof = ("0x" + bytesToHex(mintProofBytes)) as Hex;
 
   console.log("minting INFT...");
   const txHash = await walletClient.writeContract({
     address: inftAddress,
     abi: AgentINFTAbi,
     functionName: "mint",
-    args: [mintTo, agentId, root, uri],
+    args: [mintTo, agentId, mintProof],
   });
   console.log(`mint tx: ${txHash}`);
   const receipt = await publicClient.waitForTransactionReceipt({
@@ -117,7 +145,7 @@ async function main() {
   console.log(`\ndone.\ntokenId: ${tokenId}`);
   console.log(`https://sepolia.etherscan.io/tx/${txHash}`);
   console.log(
-    `https://hackagent-nine.vercel.app/inft (after env sync, INFT_TOKEN_ID=${tokenId})`,
+    `https://hackagent-nine.vercel.app/inft (after edge-config sync, INFT_TOKEN_ID=${tokenId})`,
   );
 }
 
