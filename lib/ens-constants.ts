@@ -13,6 +13,9 @@ export const AGENT_ENS = `${AGENT_SUBNAME}.${PARENT_ENS}`;
 export const SEPOLIA_IDENTITY_REGISTRY: Address =
   "0x6aF06f682A7Ba7Db32587FDedF51B9190EF738fA";
 
+export const SEPOLIA_REPUTATION_REGISTRY: Address =
+  "0x477D6FeFCE87B627a7B2215ee62a4E21fc102BbA";
+
 export const AGENT_ID_DEFAULT = 1;
 
 export function ensip25Key(args: {
