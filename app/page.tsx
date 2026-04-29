@@ -99,8 +99,8 @@ export default async function DashboardPage() {
         </div>
 
         <nav className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-xs reveal reveal-3">
-          <a className="link link-amber" href="/faq">
-            new here? read the faq →
+          <a className="link link-amber" href="/docs">
+            new here? read the docs →
           </a>
           <a className="link" href={ENS_APP} target="_blank" rel="noreferrer">
             ens profile →
