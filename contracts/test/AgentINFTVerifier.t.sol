@@ -218,6 +218,27 @@ contract AgentINFTVerifierTest is Test {
         verifier.verifyTransferValidity(proofs);
     }
 
+    function test_verifyTransferValidity_invalidAccessSig_reverts() public {
+        uint256 receiverPk = 0xBEEF;
+        bytes32 oldHash = keccak256("old");
+        bytes32 newHash = keccak256("new");
+        bytes16 sealedKey = bytes16(keccak256("k"));
+        bytes memory nonce = abi.encodePacked(uint256(11), uint128(0));
+
+        bytes memory proof = _buildTransferProof(1, oldHash, newHash, sealedKey, nonce, "og://newroot", receiverPk);
+        // Zero out the r bytes of the accessibility sig (bytes [33..65) of the proof).
+        // Setting r = 0 is an invalid ECDSA component and forces ecrecover to return
+        // address(0), which triggers InvalidAccessSignature.
+        for (uint256 j = 33; j < 65; j++) {
+            proof[j] = 0x00;
+        }
+
+        bytes[] memory proofs = new bytes[](1);
+        proofs[0] = proof;
+        vm.expectRevert(AgentINFTVerifier.InvalidAccessSignature.selector);
+        verifier.verifyTransferValidity(proofs);
+    }
+
     function test_verifyTransferValidity_replay_reverts() public {
         uint256 receiverPk = 0xBEEF;
         bytes32 oldHash = keccak256("old2");

@@ -14,6 +14,7 @@ contract AgentINFTVerifier is IERC7857DataVerifier {
 
     error InvalidProofLength();
     error InvalidOracleSignature();
+    error InvalidAccessSignature();
     error NonceReplay();
     error WrongFlags();
 
@@ -171,7 +172,7 @@ contract AgentINFTVerifier is IERC7857DataVerifier {
         if (usedNonces[nonceKey]) revert NonceReplay();
 
         address receiver = _recoverAccessSig(p, h.newDataHash, h.oldDataHash, nonce);
-        if (receiver == address(0)) revert InvalidOracleSignature();
+        if (receiver == address(0)) revert InvalidAccessSignature();
 
         address recoveredOracle = _recoverOracleSig(
             p, 289 + uint256(uriLen),
