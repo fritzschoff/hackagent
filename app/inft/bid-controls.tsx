@@ -8,12 +8,16 @@ import {
   http,
   parseUnits,
   formatUnits,
+  keccak256,
+  toBytes,
   type Address,
   type Hex,
 } from "viem";
 import { sepolia } from "viem/chains";
 import AgentBidsAbi from "@/lib/abis/AgentBids.json";
 import NetworkBanner from "@/components/network-banner";
+import DelegationButton from "@/components/delegation-button";
+import TransferModal from "@/components/transfer-modal";
 
 const ERC20_ABI = [
   {
@@ -71,12 +75,26 @@ const ERC721_ABI = [
 const MAX_UINT256 = (1n << 256n) - 1n;
 const SEPOLIA_HEX_ID = "0xaa36a7";
 
+// Delegation expires 7 days from now by default
+const DELEGATION_TTL_SECS = 7 * 24 * 60 * 60;
+
 function extractError(err: unknown): string {
   if (err && typeof err === "object") {
     const r = err as { shortMessage?: string; message?: string };
     return r.shortMessage ?? r.message ?? String(err);
   }
   return String(err);
+}
+
+/**
+ * Build the seller-sig nonce: 48 random bytes = 96 hex chars.
+ */
+function randomNonce(): Hex {
+  const bytes = crypto.getRandomValues(new Uint8Array(48));
+  const hex = Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return `0x${hex}` as Hex;
 }
 
 type StandingBid = {
@@ -90,6 +108,8 @@ type Props = {
   inftAddress: Address;
   usdcAddress: Address;
   inftOwner: Address;
+  /** Oracle address from INFT.ORACLE() — used for the delegation sig. */
+  oracleAddress: Address | null;
   rpcUrl?: string;
   standingBids: StandingBid[];
 };
@@ -116,6 +136,16 @@ export default function BidControls(props: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastTx, setLastTx] = useState<Hex | null>(null);
+
+  // Delegation state for the place-bid flow
+  const [delegationSig, setDelegationSig] = useState<Hex | null>(null);
+  const [delegationExpiresAt, setDelegationExpiresAt] = useState<number>(
+    () => Math.floor(Date.now() / 1000) + DELEGATION_TTL_SECS,
+  );
+
+  // Transfer modal state
+  const [modalBidder, setModalBidder] = useState<Address | null>(null);
+  const [sellerNonce, setSellerNonce] = useState<Hex>(() => randomNonce());
 
   const isOwner = account
     ? account.toLowerCase() === props.inftOwner.toLowerCase()
@@ -267,9 +297,17 @@ export default function BidControls(props: Props) {
     [publicClient, props.inftAddress, props.bidsAddress],
   );
 
+  /**
+   * placeBid — new signature: placeBid(tokenId, amount, delegationExpiresAt, delegationSig).
+   * Flow: DelegationButton signs first → then USDC approval → then placeBid.
+   */
   const onPlace = useCallback(async () => {
     if (!account) return;
     if (!window.ethereum) return;
+    if (!delegationSig) {
+      setError("sign the delegation first");
+      return;
+    }
     setError(null);
     setLastTx(null);
     try {
@@ -285,18 +323,30 @@ export default function BidControls(props: Props) {
         address: props.bidsAddress,
         abi: AgentBidsAbi,
         functionName: "placeBid",
-        args: [tokenId, amount],
+        args: [tokenId, amount, BigInt(delegationExpiresAt), delegationSig],
         account,
+        chain: sepolia,
       });
       setLastTx(tx);
       await publicClient.waitForTransactionReceipt({ hash: tx });
       await refreshBalance(account);
+      setDelegationSig(null); // reset for next bid
     } catch (err) {
       setError(extractError(err));
     } finally {
       setBusy(null);
     }
-  }, [account, bidAmount, ensureAllowance, props.bidsAddress, publicClient, refreshBalance, tokenId]);
+  }, [
+    account,
+    bidAmount,
+    delegationSig,
+    delegationExpiresAt,
+    ensureAllowance,
+    props.bidsAddress,
+    publicClient,
+    refreshBalance,
+    tokenId,
+  ]);
 
   const onWithdraw = useCallback(async () => {
     if (!account || !window.ethereum) return;
@@ -314,6 +364,7 @@ export default function BidControls(props: Props) {
         functionName: "withdrawBid",
         args: [tokenId],
         account,
+        chain: sepolia,
       });
       setLastTx(tx);
       await publicClient.waitForTransactionReceipt({ hash: tx });
@@ -325,154 +376,188 @@ export default function BidControls(props: Props) {
     }
   }, [account, props.bidsAddress, publicClient, refreshBalance, tokenId]);
 
-  const onAccept = useCallback(
-    async (bidder: Address) => {
-      if (!account || !window.ethereum) return;
-      setError(null);
-      setLastTx(null);
-      try {
-        const walletClient = createWalletClient({
-          chain: sepolia,
-          transport: custom(window.ethereum),
-        });
-        await ensureInftApproval(walletClient, account);
-        setBusy("accepting…");
-        const tx = await walletClient.writeContract({
-          address: props.bidsAddress,
-          abi: AgentBidsAbi,
-          functionName: "acceptBid",
-          args: [tokenId, bidder],
-          account,
-        });
-        setLastTx(tx);
-        await publicClient.waitForTransactionReceipt({ hash: tx });
-      } catch (err) {
-        setError(extractError(err));
-      } finally {
-        setBusy(null);
-      }
-    },
-    [account, ensureInftApproval, props.bidsAddress, publicClient, tokenId],
-  );
+  /** Open the TransferModal for the chosen bidder. */
+  const openModal = useCallback((bidder: Address) => {
+    setSellerNonce(randomNonce());
+    setModalBidder(bidder);
+    setError(null);
+  }, []);
+
+  const oracleAddr = props.oracleAddress;
 
   return (
-    <div className="card-flat space-y-4">
-      {!account ? (
-        <button
-          onClick={handleConnect}
-          className="btn btn-primary"
-          data-testid="connect-wallet"
-        >
-          connect wallet →
-        </button>
-      ) : (
-        <p className="text-xs font-mono">
-          <span className="text-(--color-fg)">
-            {account.slice(0, 6)}…{account.slice(-4)}
-          </span>
-          {usdcBalance !== null ? (
-            <span className="text-(--color-muted)">
-              {" "}
-              · {formatUnits(usdcBalance, 6)} USDC
-            </span>
-          ) : null}
-          {isOwner ? (
-            <span className="ml-2 pill pill-warn">owner</span>
-          ) : null}
-        </p>
-      )}
-
-      <NetworkBanner
-        requiredHexId={SEPOLIA_HEX_ID}
-        requiredName="Sepolia"
-        visible={!!account && !chainOk}
-        onSwitch={requestSwitch}
-        busy={busy !== null}
-      />
-
-      {account && chainOk ? (
-        <>
-          {!isOwner ? (
-            <div className="flex flex-wrap gap-2 items-center">
-              <input
-                type="text"
-                value={bidAmount}
-                onChange={(e) => setBidAmount(e.target.value)}
-                disabled={busy !== null}
-                className="w-24"
-                data-testid="bid-amount"
-              />
-              <span className="tag">USDC</span>
-              <button
-                onClick={onPlace}
-                disabled={busy !== null}
-                className="btn btn-primary"
-                data-testid="place-bid"
-              >
-                {myBid ? "top up →" : "place bid →"}
-              </button>
-              {myBid ? (
-                <button
-                  onClick={onWithdraw}
-                  disabled={busy !== null}
-                  className="btn"
-                >
-                  withdraw {formatUnits(myBid.amount, 6)}
-                </button>
-              ) : null}
-            </div>
-          ) : standingBids.length === 0 ? (
-            <p className="text-xs text-(--color-muted) italic">
-              no standing bids yet — wait for a bidder
-            </p>
-          ) : (
-            <ul className="space-y-1">
-              {standingBids.map((b) => (
-                <li
-                  key={b.bidder}
-                  className="flex items-center gap-2 text-xs font-mono py-1 border-b border-(--color-rule) last:border-0"
-                >
-                  <span>
-                    {b.bidder.slice(0, 6)}…{b.bidder.slice(-4)}
-                  </span>
-                  <span className="display-italic text-base text-(--color-accent)">
-                    ${formatUnits(b.amount, 6)}
-                  </span>
-                  <button
-                    onClick={() => onAccept(b.bidder)}
-                    disabled={busy !== null}
-                    className="ml-auto btn btn-primary"
-                  >
-                    accept →
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
+    <>
+      {/* Transfer modal */}
+      {modalBidder && account ? (
+        <TransferModal
+          tokenId={tokenId}
+          bidder={modalBidder}
+          bidsAddress={props.bidsAddress}
+          account={account}
+          sellerNonce={sellerNonce}
+          onClose={() => setModalBidder(null)}
+          onComplete={() => {
+            setModalBidder(null);
+            setLastTx(null);
+          }}
+        />
       ) : null}
 
-      {busy ? (
-        <p className="text-xs text-(--color-muted) italic">
-          <span className="caret" />
-          {busy}
-        </p>
-      ) : null}
-      {error ? (
-        <p className="text-xs text-(--color-amber) break-words">{error}</p>
-      ) : null}
-      {lastTx ? (
-        <p className="text-xs">
-          <a
-            href={`https://sepolia.etherscan.io/tx/${lastTx}`}
-            target="_blank"
-            rel="noreferrer"
-            className="link"
+      <div className="card-flat space-y-4">
+        {!account ? (
+          <button
+            onClick={handleConnect}
+            className="btn btn-primary"
+            data-testid="connect-wallet"
           >
-            tx →
-          </a>
-        </p>
-      ) : null}
-    </div>
+            connect wallet →
+          </button>
+        ) : (
+          <p className="text-xs font-mono">
+            <span className="text-(--color-fg)">
+              {account.slice(0, 6)}…{account.slice(-4)}
+            </span>
+            {usdcBalance !== null ? (
+              <span className="text-(--color-muted)">
+                {" "}
+                · {formatUnits(usdcBalance, 6)} USDC
+              </span>
+            ) : null}
+            {isOwner ? (
+              <span className="ml-2 pill pill-warn">owner</span>
+            ) : null}
+          </p>
+        )}
+
+        <NetworkBanner
+          requiredHexId={SEPOLIA_HEX_ID}
+          requiredName="Sepolia"
+          visible={!!account && !chainOk}
+          onSwitch={requestSwitch}
+          busy={busy !== null}
+        />
+
+        {account && chainOk ? (
+          <>
+            {!isOwner ? (
+              <div className="space-y-3">
+                {/* Step 1: Delegation signature */}
+                {oracleAddr ? (
+                  <div className="space-y-1">
+                    <p className="text-xs text-(--color-muted)">
+                      step 1 — authorize the oracle to re-encrypt on transfer
+                    </p>
+                    {delegationSig ? (
+                      <p className="text-xs text-(--color-accent) font-mono">
+                        delegation signed ✓
+                      </p>
+                    ) : (
+                      <DelegationButton
+                        tokenId={tokenId}
+                        oracle={oracleAddr}
+                        expiresAt={delegationExpiresAt}
+                        inftAddress={props.inftAddress}
+                        account={account}
+                        onSigned={(sig) => setDelegationSig(sig)}
+                        disabled={busy !== null}
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-(--color-muted) italic">
+                    oracle not set on this INFT — delegation skipped
+                  </p>
+                )}
+
+                {/* Step 2: Place bid */}
+                <div className="space-y-1">
+                  <p className="text-xs text-(--color-muted)">
+                    step 2 — place bid
+                  </p>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <input
+                      type="text"
+                      value={bidAmount}
+                      onChange={(e) => setBidAmount(e.target.value)}
+                      disabled={busy !== null}
+                      className="w-24"
+                      data-testid="bid-amount"
+                    />
+                    <span className="tag">USDC</span>
+                    <button
+                      onClick={onPlace}
+                      disabled={busy !== null || (!oracleAddr ? false : !delegationSig)}
+                      className="btn btn-primary"
+                      data-testid="place-bid"
+                    >
+                      {myBid ? "top up →" : "place bid →"}
+                    </button>
+                    {myBid ? (
+                      <button
+                        onClick={onWithdraw}
+                        disabled={busy !== null}
+                        className="btn"
+                      >
+                        withdraw {formatUnits(myBid.amount, 6)}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ) : standingBids.length === 0 ? (
+              <p className="text-xs text-(--color-muted) italic">
+                no standing bids yet — wait for a bidder
+              </p>
+            ) : (
+              <ul className="space-y-1">
+                {standingBids.map((b) => (
+                  <li
+                    key={b.bidder}
+                    className="flex items-center gap-2 text-xs font-mono py-1 border-b border-(--color-rule) last:border-0"
+                  >
+                    <span>
+                      {b.bidder.slice(0, 6)}…{b.bidder.slice(-4)}
+                    </span>
+                    <span className="display-italic text-base text-(--color-accent)">
+                      ${formatUnits(b.amount, 6)}
+                    </span>
+                    <button
+                      onClick={() => openModal(b.bidder)}
+                      disabled={busy !== null}
+                      className="ml-auto btn btn-primary"
+                      data-testid="accept-bid"
+                    >
+                      accept →
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        ) : null}
+
+        {busy ? (
+          <p className="text-xs text-(--color-muted) italic">
+            <span className="caret" />
+            {busy}
+          </p>
+        ) : null}
+        {error ? (
+          <p className="text-xs text-(--color-amber) break-words">{error}</p>
+        ) : null}
+        {lastTx ? (
+          <p className="text-xs">
+            <a
+              href={`https://sepolia.etherscan.io/tx/${lastTx}`}
+              target="_blank"
+              rel="noreferrer"
+              className="link"
+            >
+              tx →
+            </a>
+          </p>
+        ) : null}
+      </div>
+    </>
   );
 }
