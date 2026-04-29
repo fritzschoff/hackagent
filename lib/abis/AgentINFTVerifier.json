@@ -1,0 +1,160 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "oracle_",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "EXPECTED_ORACLE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "expectedOracle",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "usedNonces",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "verifyPreimage",
+    "inputs": [
+      {
+        "name": "_proofs",
+        "type": "bytes[]",
+        "internalType": "bytes[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct PreimageProofOutput[]",
+        "components": [
+          {
+            "name": "dataHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "isValid",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "verifyTransferValidity",
+    "inputs": [
+      {
+        "name": "_proofs",
+        "type": "bytes[]",
+        "internalType": "bytes[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct TransferValidityProofOutput[]",
+        "components": [
+          {
+            "name": "oldDataHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "newDataHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "receiver",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "sealedKey",
+            "type": "bytes16",
+            "internalType": "bytes16"
+          },
+          {
+            "name": "isValid",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "error",
+    "name": "InvalidAccessSignature",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidOracleSignature",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidProofLength",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NonceReplay",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "WrongFlags",
+    "inputs": []
+  }
+]
