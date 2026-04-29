@@ -103,4 +103,102 @@ contract AgentINFTVerifierTest is Test {
         vm.expectRevert(AgentINFTVerifier.WrongFlags.selector);
         verifier.verifyPreimage(proofs);
     }
+
+    struct TransferProofParams {
+        uint256 tokenId;
+        bytes32 oldHash;
+        bytes32 newHash;
+        bytes16 sealedKey;
+        bytes nonce;
+        string newUri;
+        uint256 receiverPk;
+    }
+
+    function _buildTransferProof(
+        uint256 tokenId,
+        bytes32 oldHash,
+        bytes32 newHash,
+        bytes16 sealedKey,
+        bytes memory nonce,
+        string memory newUri,
+        uint256 receiverPk
+    ) internal view returns (bytes memory) {
+        TransferProofParams memory p = TransferProofParams({
+            tokenId: tokenId,
+            oldHash: oldHash,
+            newHash: newHash,
+            sealedKey: sealedKey,
+            nonce: nonce,
+            newUri: newUri,
+            receiverPk: receiverPk
+        });
+        return _buildTransferProofFromParams(p);
+    }
+
+    function _buildTransferProofFromParams(TransferProofParams memory p)
+        internal view returns (bytes memory)
+    {
+        // Layout (private TEE flavor, corrected with tokenId at offset 1):
+        // [0]      flags (0x40 = isPrivate=1, TEE=0)
+        // [1..33)  tokenId (uint256, 32B)
+        // [33..98) accessibility sig (65B over keccak256(newHash || oldHash || nonce) EIP-191)
+        // [98..146) nonce (48B)
+        // [146..178) newDataHash
+        // [178..210) oldDataHash
+        // [210..226) sealedKey (16B)
+        // [226..259) ephemeralPubkey (33B compressed)
+        // [259..271) ivWrap (12B)
+        // [271..287) wrapTag (16B)
+        // [287..289) newUriLength (uint16 BE)
+        // [289..]   newUri (UTF-8) || oracleAttestation(65B)
+        bytes memory accessSig = _signEip191(
+            p.receiverPk,
+            keccak256(abi.encodePacked(p.newHash, p.oldHash, p.nonce))
+        );
+        bytes memory uriBytes = bytes(p.newUri);
+        bytes memory oracleSig = _signEip191(
+            oraclePk,
+            keccak256(abi.encodePacked(p.tokenId, p.oldHash, p.newHash, p.sealedKey,
+                                       keccak256(uriBytes), p.nonce))
+        );
+        return abi.encodePacked(
+            bytes1(0x40),
+            p.tokenId,
+            accessSig,
+            p.nonce,
+            p.newHash,
+            p.oldHash,
+            p.sealedKey,
+            hex"0279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
+            hex"000102030405060708090A0B",
+            hex"000102030405060708090A0B0C0D0E0F",
+            abi.encodePacked(uint16(uriBytes.length)),
+            uriBytes,
+            oracleSig
+        );
+    }
+
+    function test_verifyTransferValidity_validProof_recoversReceiver() public {
+        uint256 receiverPk = 0xBEEF;
+        address receiver = vm.addr(receiverPk);
+        bytes32 oldHash = keccak256("old");
+        bytes32 newHash = keccak256("new");
+        bytes16 sealedKey = bytes16(keccak256("k"));
+        bytes memory nonce = abi.encodePacked(uint256(7), uint128(0));
+        uint256 tokenId = 1;
+
+        bytes memory proof = _buildTransferProof(
+            tokenId, oldHash, newHash, sealedKey, nonce, "og://newroot",
+            receiverPk
+        );
+
+        bytes[] memory proofs = new bytes[](1);
+        proofs[0] = proof;
+        TransferValidityProofOutput[] memory out = verifier.verifyTransferValidity(proofs);
+        assertTrue(out[0].isValid);
+        assertEq(out[0].oldDataHash, oldHash);
+        assertEq(out[0].newDataHash, newHash);
+        assertEq(out[0].receiver, receiver);
+        assertEq(out[0].sealedKey, sealedKey);
+    }
 }
