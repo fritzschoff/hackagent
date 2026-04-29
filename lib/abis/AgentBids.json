@@ -54,6 +54,11 @@
         "name": "bidder",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "proof",
+        "type": "bytes",
+        "internalType": "bytes"
       }
     ],
     "outputs": [],
@@ -110,6 +115,11 @@
         "internalType": "uint64"
       },
       {
+        "name": "delegationExpiresAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
         "name": "active",
         "type": "bool",
         "internalType": "bool"
@@ -149,6 +159,16 @@
         "name": "amount",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "delegationExpiresAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "delegationSig",
+        "type": "bytes",
+        "internalType": "bytes"
       }
     ],
     "outputs": [],

@@ -17,6 +17,9 @@
   "dependencies": {
     "@0glabs/0g-serving-broker": "^0.7.5",
     "@0glabs/0g-ts-sdk": "^0.3.3",
+    "@noble/ciphers": "^2.2.0",
+    "@noble/curves": "^2.2.0",
+    "@noble/hashes": "^2.2.0",
     "@vercel/edge-config": "^1.4.3",
     "@vercel/functions": "^3.4.4",
     "@x402/core": "^2.10.0",

@@ -6,12 +6,26 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-/// @notice OpenSea-style standing offer pool for ERC-721 INFTs.
+/// @notice Interface subset of AgentINFT needed by AgentBids for delegation
+/// forwarding and proof-threaded transfers.
+interface IAgentINFTDelegation {
+    function setDelegationFor(
+        address receiver,
+        uint256 tokenId,
+        address oracle,
+        uint64 expiresAt,
+        bytes calldata sig
+    ) external;
+    function transferWithProof(address to, uint256 tokenId, bytes calldata proof) external;
+    function ORACLE() external view returns (address);
+}
+
+/// @notice OpenSea-style standing offer pool for ERC-7857 INFTs.
 ///
-/// Bidders escrow USDC. The owner of a tokenId may accept any standing bid at
-/// any time, atomically swapping INFT for the escrowed amount. There is no
-/// expiry; bidders may withdraw their bid until accepted. Top-ups replace the
-/// existing bid amount (must increase).
+/// Bidders escrow USDC and forward an EIP-712 delegation signature so that
+/// when the owner accepts, transferWithProof can complete atomically via the
+/// oracle-verified proof path. The oracle-delegated receiver pattern avoids
+/// any raw transferFrom call, keeping memoryReencrypted=true after acceptance.
 contract AgentBids is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -19,6 +33,7 @@ contract AgentBids is ReentrancyGuard {
         address bidder;
         uint256 amount;
         uint64 createdAt;
+        uint64 delegationExpiresAt;
         bool active;
     }
 
@@ -52,23 +67,39 @@ contract AgentBids is ReentrancyGuard {
         USDC = IERC20(usdc);
     }
 
+    /// @notice Place or top-up a bid, forwarding an EIP-712 delegation sig to
+    /// AgentINFT so the oracle can later re-encrypt to msg.sender as receiver.
+    /// @param tokenId   The INFT token to bid on.
+    /// @param amount    Total escrowed USDC (must exceed previous bid if topping up).
+    /// @param delegationExpiresAt Unix timestamp until which the delegation is valid.
+    /// @param delegationSig EIP-712 signature from the bidder over
+    ///        Delegation(tokenId, oracle, delegationExpiresAt).
     function placeBid(
         uint256 tokenId,
-        uint256 amount
+        uint256 amount,
+        uint64 delegationExpiresAt,
+        bytes calldata delegationSig
     ) external nonReentrant {
         require(amount > 0, "zero");
+        address oracle_ = IAgentINFTDelegation(address(INFT)).ORACLE();
+        // Forward delegation sig — AgentINFT validates sig recovers to msg.sender.
+        IAgentINFTDelegation(address(INFT)).setDelegationFor(
+            msg.sender, tokenId, oracle_, delegationExpiresAt, delegationSig
+        );
         Bid storage existing = bids[tokenId][msg.sender];
         if (existing.active) {
             require(amount > existing.amount, "must increase");
             uint256 delta = amount - existing.amount;
             USDC.safeTransferFrom(msg.sender, address(this), delta);
             existing.amount = amount;
+            existing.delegationExpiresAt = delegationExpiresAt;
         } else {
             USDC.safeTransferFrom(msg.sender, address(this), amount);
             bids[tokenId][msg.sender] = Bid({
                 bidder: msg.sender,
                 amount: amount,
                 createdAt: uint64(block.timestamp),
+                delegationExpiresAt: delegationExpiresAt,
                 active: true
             });
             _bidders[tokenId].push(msg.sender);
@@ -76,6 +107,7 @@ contract AgentBids is ReentrancyGuard {
         emit BidPlaced(tokenId, msg.sender, amount);
     }
 
+    /// @notice Withdraw an outstanding bid (before it is accepted).
     function withdrawBid(uint256 tokenId) external nonReentrant {
         Bid storage b = bids[tokenId][msg.sender];
         require(b.active, "no bid");
@@ -86,9 +118,16 @@ contract AgentBids is ReentrancyGuard {
         emit BidWithdrawn(tokenId, msg.sender, amt);
     }
 
+    /// @notice Owner accepts a bid by providing the oracle-signed transfer
+    /// proof. Atomically: deactivates bid, calls transferWithProof (which
+    /// re-encrypts memory to the bidder), then pays out USDC to seller.
+    /// @param tokenId  The INFT token being sold.
+    /// @param bidder   The address whose bid is being accepted.
+    /// @param proof    Oracle-signed ERC-7857 transfer-validity proof.
     function acceptBid(
         uint256 tokenId,
-        address bidder
+        address bidder,
+        bytes calldata proof
     ) external nonReentrant {
         require(INFT.ownerOf(tokenId) == msg.sender, "not owner");
         Bid storage b = bids[tokenId][bidder];
@@ -96,9 +135,8 @@ contract AgentBids is ReentrancyGuard {
         uint256 amt = b.amount;
         b.active = false;
         b.amount = 0;
-        // safeTransferFrom triggers AgentINFT._update, which clears the
-        // ERC-8004 agentWallet (EIP-8004 §4.4 anti-laundering).
-        INFT.safeTransferFrom(msg.sender, bidder, tokenId);
+        // transferWithProof validates the oracle proof and sets memoryReencrypted=true.
+        IAgentINFTDelegation(address(INFT)).transferWithProof(bidder, tokenId, proof);
         USDC.safeTransfer(msg.sender, amt);
         emit BidAccepted(tokenId, msg.sender, bidder, amt);
     }

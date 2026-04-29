@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-
+/// @notice Interface subset of IdentityRegistry needed by AgentMerger.
 interface IIdentityRegistryView {
     struct Agent {
         uint256 agentId;
@@ -15,13 +14,39 @@ interface IIdentityRegistryView {
     function getAgent(uint256 agentId) external view returns (Agent memory);
 }
 
+/// @notice Interface subset of ReputationRegistry needed by AgentMerger.
 interface IReputationRegistryView {
     function feedbackCount(uint256 agentId) external view returns (uint256);
 }
 
+/// @notice Interface subset of AgentINFT needed by AgentMerger for delegation
+/// and proof-threaded transfers.
+interface IAgentINFTDelegation {
+    function setDelegationByOwner(
+        address receiver,
+        uint256 tokenId,
+        address oracle,
+        uint64 expiresAt
+    ) external;
+    function transferWithProof(address to, uint256 tokenId, bytes calldata proof) external;
+    function ownerOf(uint256 tokenId) external view returns (address);
+    function ORACLE() external view returns (address);
+}
+
+/// @dev ERC-721 safe-transfer receiver interface (IERC721Receiver from OZ).
+interface IERC721Receiver {
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+    ) external returns (bytes4);
+}
+
 /// @notice On-chain agent M&A. Two ERC-7857 INFTs combine into a single
 /// merged agent: source INFTs transfer into the merger contract (locked
-/// custody, conceptually burned for individual operation), lineage records
+/// custody, conceptually burned for individual operation) via the
+/// oracle-verified proof path so memoryReencrypted stays true. Lineage records
 /// the constituent IDs + a 0G Storage Merkle root for the combined memory
 /// blob, and effectiveFeedbackCount() oracles the sum of constituent rep.
 ///
@@ -29,10 +54,17 @@ interface IReputationRegistryView {
 /// registerByDeployer in a separate tx) before recordMerge — keeping
 /// concerns decoupled and avoiding the merger contract needing deployer
 /// rights on the registry.
-contract AgentMerger {
+///
+/// Caller flow:
+///   1. Alice calls inft.setDelegationByOwner(merger, srcToken1, oracle, exp)
+///   2. Alice calls inft.setDelegationByOwner(merger, srcToken2, oracle, exp)
+///   3. Alice calls merger.recordMerge(..., proof1, ..., proof2, ...)
+///      — merger calls inft.transferWithProof(address(this), srcToken1, proof1)
+///      — merger calls inft.transferWithProof(address(this), srcToken2, proof2)
+contract AgentMerger is IERC721Receiver {
     IIdentityRegistryView public immutable IDENTITY;
     IReputationRegistryView public immutable REPUTATION;
-    IERC721 public immutable INFT;
+    IAgentINFTDelegation public immutable INFT;
 
     struct Merger {
         uint256 mergedAgentId;
@@ -41,6 +73,7 @@ contract AgentMerger {
         uint256 sourceTokenId1;
         uint256 sourceTokenId2;
         bytes32 sealedMemoryRoot;
+        string sealedMemoryUri;
         uint64 mergedAt;
         address recordedBy;
     }
@@ -57,6 +90,7 @@ contract AgentMerger {
         uint256 sourceTokenId1,
         uint256 sourceTokenId2,
         bytes32 sealedMemoryRoot,
+        string sealedMemoryUri,
         address recordedBy
     );
 
@@ -67,16 +101,30 @@ contract AgentMerger {
     ) {
         IDENTITY = IIdentityRegistryView(identityRegistry);
         REPUTATION = IReputationRegistryView(reputationRegistry);
-        INFT = IERC721(inft);
+        INFT = IAgentINFTDelegation(inft);
     }
 
+    /// @notice Record a merge of two source agents into one merged agent.
+    /// @param mergedAgentId   Pre-registered ID of the new merged agent.
+    /// @param sourceAgentId1  Agent ID of source 1 (for lineage / rep tracking).
+    /// @param sourceTokenId1  INFT token ID of source 1.
+    /// @param proof1          Oracle-signed ERC-7857 transfer-validity proof for source 1.
+    ///                        The proof's newDataHash becomes the sealed memory root for source 1.
+    /// @param sourceAgentId2  Agent ID of source 2.
+    /// @param sourceTokenId2  INFT token ID of source 2.
+    /// @param proof2          Oracle-signed ERC-7857 transfer-validity proof for source 2.
+    /// @param sealedMemoryRoot Combined sealed memory Merkle root for the merged agent.
+    /// @param sealedMemoryUri  0G Storage URI for the merged memory blob.
     function recordMerge(
         uint256 mergedAgentId,
         uint256 sourceAgentId1,
         uint256 sourceTokenId1,
+        bytes calldata proof1,
         uint256 sourceAgentId2,
         uint256 sourceTokenId2,
-        bytes32 sealedMemoryRoot
+        bytes calldata proof2,
+        bytes32 sealedMemoryRoot,
+        string calldata sealedMemoryUri
     ) external returns (uint256 mergerIdx) {
         require(
             mergedAgentId != sourceAgentId1 &&
@@ -98,13 +146,13 @@ contract AgentMerger {
         );
         require(mergerIndexOfAgent[mergedAgentId] == 0, "already merged");
 
-        // Pull source INFTs into custody. Caller must hold both and have
-        // approved this contract via setApprovalForAll. The transfers
-        // trigger AgentINFT._update which clears the agentWallet on V2 for
-        // each constituent — semantically correct: post-merger the source
-        // agents stop receiving payouts.
-        INFT.transferFrom(msg.sender, address(this), sourceTokenId1);
-        INFT.transferFrom(msg.sender, address(this), sourceTokenId2);
+        // Pull source INFTs into custody via proof path. Caller must have
+        // called setDelegationByOwner(address(this), srcTokenId, oracle, exp)
+        // for each source token before calling this. The proof's receiver
+        // field is matched by INFT.transferWithProof against the delegation.
+        // This ensures memoryReencrypted=true after the merger.
+        INFT.transferWithProof(address(this), sourceTokenId1, proof1);
+        INFT.transferWithProof(address(this), sourceTokenId2, proof2);
 
         _mergers.push(
             Merger({
@@ -114,6 +162,7 @@ contract AgentMerger {
                 sourceTokenId1: sourceTokenId1,
                 sourceTokenId2: sourceTokenId2,
                 sealedMemoryRoot: sealedMemoryRoot,
+                sealedMemoryUri: sealedMemoryUri,
                 mergedAt: uint64(block.timestamp),
                 recordedBy: msg.sender
             })
@@ -129,6 +178,7 @@ contract AgentMerger {
             sourceTokenId1,
             sourceTokenId2,
             sealedMemoryRoot,
+            sealedMemoryUri,
             msg.sender
         );
     }
@@ -143,6 +193,16 @@ contract AgentMerger {
 
     function mergerCount() external view returns (uint256) {
         return _mergers.length;
+    }
+
+    /// @dev Accept safe ERC-721 transfers (for receiving source INFTs in recordMerge).
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes calldata
+    ) external pure override returns (bytes4) {
+        return IERC721Receiver.onERC721Received.selector;
     }
 
     /// @notice Sum of feedback counts across constituent + merged-self IDs.

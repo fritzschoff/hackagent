@@ -4,15 +4,19 @@ pragma solidity ^0.8.28;
 import "forge-std/Test.sol";
 import {IdentityRegistryV2} from "../src/IdentityRegistryV2.sol";
 import {AgentINFT} from "../src/AgentINFT.sol";
+import {AgentINFTVerifier} from "../src/AgentINFTVerifier.sol";
 
 contract IdentityRegistryV2Test is Test {
     IdentityRegistryV2 internal reg;
+    AgentINFTVerifier internal verifier;
     AgentINFT internal inft;
 
     address internal deployer = address(0xD0A);
     address internal agentEoa = address(0xA110);
     uint256 internal newOwnerPk = 0xBEEF;
     address internal newOwner = vm.addr(newOwnerPk);
+    uint256 internal oraclePk = 0xA11CE;
+    address internal oracle;
 
     bytes32 private constant SET_AGENT_WALLET_TYPEHASH =
         keccak256(
@@ -20,14 +24,24 @@ contract IdentityRegistryV2Test is Test {
         );
 
     function setUp() public {
+        oracle = vm.addr(oraclePk);
         vm.startPrank(deployer);
         reg = new IdentityRegistryV2();
-        inft = new AgentINFT(address(reg), "https://example.test/inft/");
+        verifier = new AgentINFTVerifier(oracle);
+        inft = new AgentINFT(address(reg), "https://example.test/inft/", address(verifier), oracle);
         reg.setInft(address(inft));
         vm.stopPrank();
 
         vm.prank(agentEoa);
         reg.register("tradewise.test", agentEoa);
+    }
+
+    /// @dev Build a minimal valid mint proof signed by the test oracle key.
+    function _mintProof(bytes32 dataHash, bytes memory nonce) internal view returns (bytes memory) {
+        bytes32 messageHash = keccak256(abi.encodePacked("inft-mint-v1", dataHash, nonce));
+        bytes32 prefixed = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(oraclePk, prefixed);
+        return abi.encodePacked(bytes1(0x00), abi.encodePacked(r, s, v), dataHash, nonce);
     }
 
     function test_register_assignsId1() public view {
@@ -67,7 +81,7 @@ contract IdentityRegistryV2Test is Test {
 
     function test_inftTransfer_clearsWallet() public {
         vm.prank(deployer);
-        inft.mint(agentEoa, 1, bytes32("root"), "og://root");
+        inft.mint(agentEoa, 1, _mintProof(keccak256("root"), abi.encodePacked(uint256(999), uint128(0))));
 
         // Sanity: wallet still set after mint.
         assertEq(reg.getAgent(1).agentWallet, agentEoa);
@@ -80,7 +94,7 @@ contract IdentityRegistryV2Test is Test {
 
     function test_setAgentWallet_acceptsValidSig() public {
         vm.prank(deployer);
-        inft.mint(agentEoa, 1, bytes32("root"), "og://root");
+        inft.mint(agentEoa, 1, _mintProof(keccak256("root"), abi.encodePacked(uint256(999), uint128(0))));
         vm.prank(agentEoa);
         inft.transferFrom(agentEoa, newOwner, 1);
 
@@ -113,7 +127,7 @@ contract IdentityRegistryV2Test is Test {
 
     function test_setAgentWallet_rejectsWrongSigner() public {
         vm.prank(deployer);
-        inft.mint(agentEoa, 1, bytes32("root"), "og://root");
+        inft.mint(agentEoa, 1, _mintProof(keccak256("root"), abi.encodePacked(uint256(999), uint128(0))));
         vm.prank(agentEoa);
         inft.transferFrom(agentEoa, newOwner, 1);
 
@@ -145,7 +159,7 @@ contract IdentityRegistryV2Test is Test {
 
     function test_setAgentWallet_rejectsExpired() public {
         vm.prank(deployer);
-        inft.mint(agentEoa, 1, bytes32("root"), "og://root");
+        inft.mint(agentEoa, 1, _mintProof(keccak256("root"), abi.encodePacked(uint256(999), uint128(0))));
         vm.prank(agentEoa);
         inft.transferFrom(agentEoa, newOwner, 1);
 
