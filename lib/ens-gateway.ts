@@ -69,20 +69,21 @@ export type AgentInfo = {
 /**
  * Direct wallet labels added in W3 for primary-name reverse resolution.
  * Each entry maps a fully-qualified ENS name to a specific wallet address.
- * `keeperhub.agentlab.eth` returns the zero address until M4 fills in the
- * Turnkey wallet address via the ENSPrimaryNameSetter workflow.
+ * Forward `addr(label)` lookups MUST match the on-chain reverse record for
+ * ENS reverse resolution (`getEnsName(addr)`) to return the label — viem
+ * does the round-trip check.
  */
 const WALLET_LABELS: Record<string, `0x${string}`> = {
   "agent-eoa.tradewise.agentlab.eth":
     "0x7a83678e330a0C565e6272498FFDF421621820A3",
   "pricewatch-deployer.agentlab.eth":
     "0xBf5df5c89b1eCa32C1E8AC7ECdd93d44F86F2469",
-  // VALIDATOR_PK address (0x01340D5A7A6995513C0C3EdF0367236e5b9C83F6)
+  // VALIDATOR_PK address
   "validator.agentlab.eth":
     "0x01340D5A7A6995513C0C3EdF0367236e5b9C83F6",
-  // Turnkey wallet — placeholder until W3 M4 fills in the real address
+  // Turnkey wallet — set by W3 M4 via execute_contract_call setName
   "keeperhub.agentlab.eth":
-    "0x0000000000000000000000000000000000000000",
+    "0xB28cC07F397Af54c89b2Ff06b6c595F282856539",
 };
 
 /**
