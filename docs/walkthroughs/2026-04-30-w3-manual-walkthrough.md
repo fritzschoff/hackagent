@@ -155,7 +155,7 @@ Validate that the W2 + W3 changes together produce zero gas burn from PRICEWATCH
   ```
 
 - [ ] Perform several operations:
-  - Reload `/ens-debug` and resolve multiple keys.
+  - Reload `/ens` and resolve multiple keys.
   - Trigger a paid x402 quote via `/api/x402/quote`.
   - Browse `/keeperhub` and view workflow runs.
 

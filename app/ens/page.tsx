@@ -100,7 +100,7 @@ export default function EnsDebugPage() {
     setResult(null);
     try {
       const res = await fetch(
-        `/api/ens-debug?name=${encodeURIComponent(name)}&key=${encodeURIComponent(key)}`,
+        `/api/ens?name=${encodeURIComponent(name)}&key=${encodeURIComponent(key)}`,
       );
       setResult(await res.json());
     } catch (err) {
@@ -115,7 +115,7 @@ export default function EnsDebugPage() {
     setResult(null);
     try {
       const res = await fetch(
-        `/api/ens-debug?name=${encodeURIComponent(name)}&all=1`,
+        `/api/ens?name=${encodeURIComponent(name)}&all=1`,
       );
       setResult(await res.json());
     } catch (err) {
@@ -130,7 +130,7 @@ export default function EnsDebugPage() {
     setResult(null);
     try {
       const res = await fetch(
-        `/api/ens-debug?reverse=${encodeURIComponent(reverseAddr)}`,
+        `/api/ens?reverse=${encodeURIComponent(reverseAddr)}`,
       );
       setResult(await res.json());
     } catch (err) {
@@ -142,13 +142,13 @@ export default function EnsDebugPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-6 md:px-10 pb-24">
-      <SiteNav active="docs" />
+      <SiteNav active="ens" />
       <header className="pt-6 pb-10 border-b-2 border-(--color-fg) reveal reveal-1">
         <p className="tag mb-2">demo · ens ccip-read · w2 + w3 cross-link</p>
         <h1 className="display text-[clamp(2rem,5vw,3.5rem)] leading-[0.95] tracking-tight">
-          /ens-debug{" "}
+          {"agentlab.eth"}{" "}
           <span className="display-italic font-light text-(--color-muted)">
-            / live gateway probe
+            / ens
           </span>
         </h1>
         <p className="mt-3 text-sm max-w-3xl text-(--color-muted)">

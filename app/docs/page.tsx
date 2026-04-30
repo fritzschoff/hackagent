@@ -892,7 +892,7 @@ caller receives the value`}
             </tbody>
           </table>
           <p className="mt-4 text-(--color-muted)">
-            The <Link href="/ens-debug" className="link">/ens-debug</Link> page lets you
+            The <Link href="/ens" className="link">/ens</Link> page lets you
             type any (name, key) pair and watch the gateway resolve it
             live, latency included. Try{" "}
             <Code>tradewise.agentlab.eth</Code> /{" "}

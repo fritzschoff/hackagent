@@ -2,7 +2,7 @@
 
 **Purpose:** verify the W2 CCIP-Read ENS gateway end-to-end after `feat/w2-ens-gateway` deploys to a Vercel preview (or production after merge).
 
-**What this verifies:** every record served by the gateway, every cross-link with W1, the `/ens-debug` page, and that external clients (etherscan, MetaMask, wagmi/viem) all resolve `*.agentlab.eth` records through the offchain pipeline without intervention.
+**What this verifies:** every record served by the gateway, every cross-link with W1, the `/ens` page, and that external clients (etherscan, MetaMask, wagmi/viem) all resolve `*.agentlab.eth` records through the offchain pipeline without intervention.
 
 **Reference deployments (Sepolia):**
 
@@ -27,11 +27,11 @@ ENS resolver records (all flipped to OffchainResolver in M5):
 
 ---
 
-## §A — `/ens-debug` page roundtrip (the demo gold)
+## §A — `/ens` page roundtrip (the demo gold)
 
 This is the section judges will love.
 
-- [ ] Visit `/ens-debug` on the live deploy.
+- [ ] Visit `/ens` on the live deploy.
 - [ ] Form prefills `name = tradewise.agentlab.eth`, `key = last-seen-at`. Click **resolve**.
 - [ ] Within ≤ 2s, the JSON box renders something like:
 
@@ -59,7 +59,7 @@ This is the section judges will love.
 
 Validates the `*.agentlab.eth` wildcard story.
 
-- [ ] In `/ens-debug`, enter `name = agent-eoa.tradewise.agentlab.eth`, `key = addr`. Click resolve.
+- [ ] In `/ens`, enter `name = agent-eoa.tradewise.agentlab.eth`, `key = addr`. Click resolve.
 - [ ] Returns a `value` of `"0x0000…0000"` (zero address — labelToAgent doesn't have this nested entry yet; W3 extends it). The KEY POINT: it does NOT 404 or error — the gateway *handled* a name that was never registered as a subname. That's ENSIP-10 wildcard working.
 - [ ] Sepolia etherscan also handles wildcard: visit https://sepolia.etherscan.io/enslookup-search?search=agent-eoa.tradewise.agentlab.eth. The "Resolver" row shows `0x4F95…8C17` (our OffchainResolver, inherited via wildcard from the parent `agentlab.eth`).
 
@@ -88,7 +88,7 @@ Validates that the gateway is invisible to standard tooling. If this works, ever
   console.log(v);
   ```
 
-  Returns the same ISO string as `/ens-debug`. No special config — viem followed the OffchainLookup transparently.
+  Returns the same ISO string as `/ens`. No special config — viem followed the OffchainLookup transparently.
 
 - [ ] **Etherscan**: visit https://sepolia.etherscan.io/enslookup-search?search=tradewise.agentlab.eth. The text records section should show our live values (Etherscan does CCIP-Read on the read tab).
 
@@ -124,7 +124,7 @@ Validates that ENS reads are zero-gas.
     --rpc-url https://ethereum-sepolia-rpc.publicnode.com -e
   ```
 
-- [ ] Reload `/inft` 10 times, click around, browse to `/ens-debug` and resolve different keys.
+- [ ] Reload `/inft` 10 times, click around, browse to `/ens` and resolve different keys.
 - [ ] Re-check balance — **should be unchanged** (modulo any deliberate user actions). The W2 gateway never sends txs from PRICEWATCH_PK; all writes happen via KeeperHub webhook pulses (PR #13) which write Redis only.
 
 - [ ] Compare to **pre-W2 behavior**: prior to PR #13, every paid quote burned ~14k gas. Now: zero per quote. W2 doesn't add any new on-chain writes either.
@@ -154,7 +154,7 @@ These are the same checks `scripts/test-ens-gateway-e2e.ts` makes — they're wo
 
 | Section | Result | Notes |
 |---|---|---|
-| §A `/ens-debug` roundtrip | ☐ pass / ☐ fail | |
+| §A `/ens` roundtrip | ☐ pass / ☐ fail | |
 | §B wildcard via ENSIP-10 | ☐ pass / ☐ fail | |
 | §C external clients | ☐ pass / ☐ fail | |
 | §D `/inft` cross-link | ☐ pass / ☐ fail | |
