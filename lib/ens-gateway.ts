@@ -62,11 +62,34 @@ export function decodeDnsName(wire: Uint8Array): string {
 export type AgentInfo = {
   agentId: number | null;
   tokenId: number | null;
+  /** When set, computeAddr returns this address directly (skips agentId lookup). */
+  addressOverride?: `0x${string}`;
+};
+
+/**
+ * Direct wallet labels added in W3 for primary-name reverse resolution.
+ * Each entry maps a fully-qualified ENS name to a specific wallet address.
+ * Forward `addr(label)` lookups MUST match the on-chain reverse record for
+ * ENS reverse resolution (`getEnsName(addr)`) to return the label — viem
+ * does the round-trip check.
+ */
+const WALLET_LABELS: Record<string, `0x${string}`> = {
+  "agent-eoa.tradewise.agentlab.eth":
+    "0x7a83678e330a0C565e6272498FFDF421621820A3",
+  "pricewatch-deployer.agentlab.eth":
+    "0xBf5df5c89b1eCa32C1E8AC7ECdd93d44F86F2469",
+  // VALIDATOR_PK address
+  "validator.agentlab.eth":
+    "0x01340D5A7A6995513C0C3EdF0367236e5b9C83F6",
+  // Turnkey wallet — set by W3 M4 via execute_contract_call setName
+  "keeperhub.agentlab.eth":
+    "0xB28cC07F397Af54c89b2Ff06b6c595F282856539",
 };
 
 /**
  * Maps a fully-qualified label like "tradewise.agentlab.eth" to the agent's
- * identifiers.  Hardcoded for v1; W3 will extend with on-chain lookup.
+ * identifiers.  Hardcoded for v1; W3 extended with direct wallet labels for
+ * nested subnames (agent-eoa, pricewatch-deployer, validator, keeperhub).
  */
 export async function labelToAgent(
   label: string,
@@ -74,6 +97,14 @@ export async function labelToAgent(
   const lower = label.toLowerCase();
   if (lower === "tradewise.agentlab.eth") return { agentId: 1, tokenId: 1 };
   if (lower === "pricewatch.agentlab.eth") return { agentId: 2, tokenId: null };
+
+  // Direct wallet labels (W3): return addressOverride so computeAddr skips the
+  // agentId-based edge-config lookup.
+  const override = WALLET_LABELS[lower];
+  if (override !== undefined) {
+    return { agentId: null, tokenId: null, addressOverride: override };
+  }
+
   return null;
 }
 
@@ -102,13 +133,12 @@ export async function computeRecord(
 
   if (selector === ADDR_SELECTOR || selector === ADDR_COIN_SELECTOR) {
     const addr = await computeAddr(label);
-    // addr(bytes32) → bytes  (the 20-byte address as ABI bytes)
-    const addrBytes = hexToBytes(addr.slice(2));
+    // addr(bytes32) → abi.encode(address)
+    // The CCIP-Read client (viem getEnsAddress) decodes resolveWithProof's result
+    // as the return type of addr(bytes32) which is `address`. We must encode
+    // as address so abi.decode(result, (address)) yields the correct value.
     return {
-      encoded: encodeAbiParameters(
-        [{ type: "bytes" }],
-        [("0x" + bytesToHex(addrBytes)) as `0x${string}`],
-      ),
+      encoded: encodeAbiParameters([{ type: "address" }], [addr]),
     };
   }
 
@@ -248,7 +278,12 @@ async function computeTextRecord(
 async function computeAddr(label: string): Promise<`0x${string}`> {
   const zero = "0x0000000000000000000000000000000000000000" as `0x${string}`;
   const agent = await labelToAgent(label);
-  if (!agent || agent.agentId === null) return zero;
+  if (!agent) return zero;
+
+  // W3 wallet labels: return the hardcoded address directly.
+  if (agent.addressOverride !== undefined) return agent.addressOverride;
+
+  if (agent.agentId === null) return zero;
 
   const addrs = await getSepoliaAddresses();
   if (agent.agentId === 1) {

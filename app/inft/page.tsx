@@ -7,6 +7,10 @@ import BidControls from "./bid-controls";
 import SiteNav from "@/components/site-nav";
 import MemoryStaleBadge from "@/components/memory-stale-badge";
 
+// Force dynamic — page reads through CCIP-Read which can take 5-15s per ENS
+// text record; static generation times out on Vercel. Each request gets a
+// fresh render instead.
+export const dynamic = "force-dynamic";
 export const revalidate = 30;
 
 const SEPOLIA_ETHERSCAN = "https://sepolia.etherscan.io";

@@ -205,6 +205,36 @@ export async function triggerKeeperHub(args: {
   }
 }
 
+/// Convenience wrapper that accepts a plain string kind and routes to the
+/// correct workflow via the existing KeeperHubKind routing. Returns null when
+/// the kind is unrecognised or the workflow ID is not configured.
+export async function triggerKeeperHubByKind(
+  kind: string,
+  input: Record<string, unknown>,
+): Promise<{ workflowRunId: string } | null> {
+  const VALID_KINDS: KeeperHubKind[] = [
+    "swap",
+    "heartbeat",
+    "reputation-cache",
+    "primary-name",
+    "avatar-sync",
+    "gateway-invalidate",
+  ];
+  if (!(VALID_KINDS as string[]).includes(kind)) {
+    console.warn(
+      `[keeperhub] no workflow id for kind=${kind}; skipping trigger`,
+    );
+    return null;
+  }
+  const result = await triggerKeeperHub({
+    kind: kind as KeeperHubKind,
+    input,
+    pollForTx: false,
+  });
+  if (!result) return null;
+  return { workflowRunId: result.workflowRunId };
+}
+
 export async function getWorkflowRun(
   runId: string,
 ): Promise<WorkflowResult | null> {

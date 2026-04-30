@@ -11,6 +11,10 @@ import { getSepoliaAddresses } from "@/lib/edge-config";
 import { AGENT_ENS, resolveAgentEns } from "@/lib/ens";
 import SiteNav from "@/components/site-nav";
 
+// Force dynamic — page calls resolveAgentEns() which now reads through the
+// W2 CCIP-Read gateway. Static generation can't complete in 60s. Render
+// every request, with the existing 30s ENS Redis cache absorbing duplicates.
+export const dynamic = "force-dynamic";
 export const revalidate = 30;
 
 const AGENT_EOA = "0x7a83678e330a0C565e6272498FFDF421621820A3";

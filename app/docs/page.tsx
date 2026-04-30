@@ -40,7 +40,7 @@ export default function DocsPage() {
         <a href="#try" className="link">try it yourself</a>
       </nav>
       <nav className="mt-3 reveal reveal-2 flex flex-wrap gap-x-6 gap-y-2 text-xs">
-        <span className="text-(--color-muted) tag">deep dive:</span>
+        <span className="text-(--color-muted) tag">w1 inft:</span>
         <a href="#arch-overview" className="link">system overview</a>
         <a href="#arch-inft" className="link">erc-7857 oracle</a>
         <a href="#arch-transfer" className="link">transfer flow</a>
@@ -48,6 +48,20 @@ export default function DocsPage() {
         <a href="#arch-merger-deep" className="link">merger flow</a>
         <a href="#arch-trust" className="link">trust model</a>
         <a href="#arch-stack" className="link">tech stack</a>
+      </nav>
+      <nav className="mt-3 reveal reveal-2 flex flex-wrap gap-x-6 gap-y-2 text-xs">
+        <span className="text-(--color-muted) tag">w2 ens:</span>
+        <a href="#arch-w2" className="link">ccip-read gateway</a>
+        <a href="#arch-w2-flow" className="link">resolve flow</a>
+        <a href="#arch-w2-records" className="link">live records</a>
+      </nav>
+      <nav className="mt-3 reveal reveal-2 flex flex-wrap gap-x-6 gap-y-2 text-xs">
+        <span className="text-(--color-muted) tag">w3 names + keeperhub:</span>
+        <a href="#arch-w3-names" className="link">primary names</a>
+        <a href="#arch-w3-keeperhub" className="link">keeperhub workflows</a>
+      </nav>
+      <nav className="mt-3 reveal reveal-2 flex flex-wrap gap-x-6 gap-y-2 text-xs">
+        <span className="text-(--color-muted) tag">all:</span>
         <a href="#arch-contracts" className="link">contract addresses</a>
       </nav>
 
@@ -785,19 +799,219 @@ export default function DocsPage() {
         </div>
       </section>
 
+      {/* ────────────── W2 ENS gateway sections ────────────── */}
+
+      <section id="arch-w2" className="mt-12 reveal reveal-3">
+        <Header marker="∇09" title="w2 — ccip-read ens gateway" />
+        <div className="card-flat space-y-4 text-sm leading-relaxed">
+          <p>
+            Before W2: every <Code>last-seen-at</Code> heartbeat,{" "}
+            <Code>reputation-summary</Code>, and dynamic ENS text record was
+            a real <Code>setText</Code> tx burning Sepolia gas. After W2: a
+            single <Code>OffchainResolver</Code> contract reverts every{" "}
+            <Code>resolve()</Code> call with EIP-3668{" "}
+            <Code>OffchainLookup</Code>, viem/wagmi clients follow it
+            transparently, and our Vercel gateway computes record values
+            live (Redis + on-chain reads + Edge Config), signs the response
+            with <Code>INFT_GATEWAY_PK</Code>, and{" "}
+            <Code>resolveWithProof</Code> verifies the sig with{" "}
+            <Code>ecrecover</Code> on chain. <strong>Zero gas per read.</strong>
+          </p>
+          <p className="text-(--color-muted)">
+            ENSIP-10 wildcard: a single resolver at the parent{" "}
+            <Code>agentlab.eth</Code> serves every <Code>*.agentlab.eth</Code>
+            and every nested <Code>*.*.agentlab.eth</Code>. New agents get
+            ENS records for free with no per-name registration.
+          </p>
+          <p className="text-(--color-muted)">
+            <strong>Trust posture (W2-α):</strong> gateway is an EOA we sign
+            with. Compromise ⇒ malicious resolution. Worst case is stale
+            telemetry, never falsified ownership (ownership stays in the L1
+            registry, the resolver doesn&apos;t override it). Future swap to
+            W2-β (storage-proof verifier) replaces only the
+            <Code>resolveWithProof</Code> body — no API change.
+          </p>
+        </div>
+      </section>
+
+      <section id="arch-w2-flow" className="mt-12 reveal reveal-3">
+        <Header marker="∇10" title="resolve flow — what happens when you query an ens text record" />
+        <div className="card-flat space-y-3 text-sm leading-relaxed">
+          <pre className="overflow-x-auto bg-(--color-bg-soft) p-4 rounded text-[11px] font-mono leading-snug">
+{`wallet / dApp                viem.getEnsText({ name, key })
+       │
+       │  1. eth_call resolve(name, data) on agentlab.eth's resolver
+       ▼
+OffchainResolver (Sepolia)   reverts: OffchainLookup(this, [gatewayURL],
+       │                              callData, callbackFn, extraData)
+       │
+       │  2. viem auto-handles the revert (EIP-3668)
+       │     GET https://hackagent-nine.vercel.app/api/ens-gateway/{sender}/{data}.json
+       ▼
+gateway HTTP route           - ABI-decode (name, data)
+                             - parse selector: text / addr / ...
+                             - compute value: Redis + chain + Edge Config
+                             - sign: keccak256(0x1900 || resolver || expires
+                                              || keccak(extraData) || keccak(result))
+                             - returns: { data: encode(expires, result, sig) }
+       │
+       │  3. viem calls back: resolveWithProof(response, extraData)
+       ▼
+OffchainResolver.resolveWithProof
+                             - check expires > now
+                             - ecrecover sig === expectedGatewaySigner
+                             - return result bytes
+       │
+       │  4. viem decodes: { string } or { bytes }
+       ▼
+caller receives the value`}
+          </pre>
+        </div>
+      </section>
+
+      <section id="arch-w2-records" className="mt-12 reveal reveal-3">
+        <Header marker="∇11" title="live records served by the gateway" />
+        <div className="card-flat text-sm leading-relaxed">
+          <table className="w-full text-xs mt-2">
+            <thead className="text-(--color-muted) text-left">
+              <tr>
+                <th className="pb-2 pr-4 font-normal">key</th>
+                <th className="pb-2 pr-4 font-normal">source</th>
+                <th className="pb-2 font-normal">cross-link</th>
+              </tr>
+            </thead>
+            <tbody className="font-mono">
+              <RecordRow keyName="last-seen-at" source="Redis agent:1:last-seen" link="W3 KeeperHub heartbeat-pulse" />
+              <RecordRow keyName="reputation-summary" source="Redis with on-chain ReputationRegistry.feedbackCount fallback" link="W3 KeeperHub reputation-pulse" />
+              <RecordRow keyName="outstanding-bids" source="On-chain AgentBids.biddersCount(tokenId)" link="W1 contract" />
+              <RecordRow keyName="inft-tradeable" source="On-chain AgentINFT.memoryReencrypted(tokenId)" link="W1 — '1' fresh, '0' stale" />
+              <RecordRow keyName="memory-rotations" source="Redis inft:meta:1:rotations" link="W1 oracle" />
+              <RecordRow keyName="avatar" source="computed: eip155:11155111/erc721:<INFT>/<tokenId>" link="W1 INFT" />
+              <RecordRow keyName="addr" source="WALLET_LABELS map (forward resolution)" link="W3 nested wallet labels" />
+              <RecordRow keyName="agent-card / description / url" source="Edge Config (static)" link="—" />
+            </tbody>
+          </table>
+          <p className="mt-4 text-(--color-muted)">
+            The <Link href="/ens-debug" className="link">/ens-debug</Link> page lets you
+            type any (name, key) pair and watch the gateway resolve it
+            live, latency included. Try{" "}
+            <Code>tradewise.agentlab.eth</Code> /{" "}
+            <Code>memory-rotations</Code> — the count goes up after every
+            successful <Code>transferWithProof</Code> on Sepolia.
+          </p>
+        </div>
+      </section>
+
+      {/* ────────────── W3 primary names + keeperhub sections ────────────── */}
+
+      <section id="arch-w3-names" className="mt-12 reveal reveal-3">
+        <Header marker="∇12" title="w3 — ensip-19 multichain primary names" />
+        <div className="card-flat space-y-3 text-sm leading-relaxed">
+          <p>
+            Every wallet we own gets a primary name on Sepolia. Etherscan,
+            MetaMask, and any wallet UI that does ENS reverse resolution
+            shows the name instead of hex.
+          </p>
+          <table className="text-xs w-full">
+            <thead className="text-(--color-muted) text-left">
+              <tr>
+                <th className="pb-2 pr-4 font-normal">role</th>
+                <th className="pb-2 pr-4 font-normal">address</th>
+                <th className="pb-2 font-normal">ens reverse name</th>
+              </tr>
+            </thead>
+            <tbody className="font-mono">
+              <NameRow role="agent EOA" addr="0x7a83…20A3" name="agent-eoa.tradewise.agentlab.eth" />
+              <NameRow role="pricewatch deployer" addr="0xBf5d…2469" name="pricewatch-deployer.agentlab.eth" />
+              <NameRow role="validator" addr="0x0134…83F6" name="validator.agentlab.eth" />
+              <NameRow role="keeperhub turnkey" addr="0xB28c…6539" name="keeperhub.agentlab.eth" />
+            </tbody>
+          </table>
+          <p className="text-(--color-muted)">
+            Forward <Code>addr(label)</Code> resolution is handled
+            dynamically by the W2 gateway — we never wrote forward records
+            on chain. Reverse records are set via the canonical Sepolia
+            ReverseRegistrar (<Code>0xA0a1…C0C6</Code>); each wallet pays
+            its own gas for the one-time <Code>setName</Code> call. The
+            Turnkey wallet uses KeeperHub&apos;s{" "}
+            <Code>execute_contract_call</Code> to broadcast.
+          </p>
+        </div>
+      </section>
+
+      <section id="arch-w3-keeperhub" className="mt-12 reveal reveal-3">
+        <Header marker="∇13" title="w3 — keeperhub orchestration" />
+        <div className="card-flat space-y-4 text-sm leading-relaxed">
+          <p>
+            KeeperHub is the agent&apos;s automation layer. Every paid
+            x402 quote fires a workflow; chain events fire workflows; the
+            agent uses KeeperHub the same way a SaaS company uses Zapier.
+          </p>
+          <table className="text-xs w-full">
+            <thead className="text-(--color-muted) text-left">
+              <tr>
+                <th className="pb-2 pr-4 font-normal">workflow</th>
+                <th className="pb-2 pr-4 font-normal">trigger</th>
+                <th className="pb-2 font-normal">action</th>
+              </tr>
+            </thead>
+            <tbody className="font-mono">
+              <WfRow name="Heartbeat" trigger="paid x402 quote (debounced 5min)" action="webhook → Redis (agent:1:last-seen)" />
+              <WfRow name="ReputationCache" trigger="paid x402 quote (debounced 5min)" action="webhook → Redis (reputation:summary:1)" />
+              <WfRow name="Swap (existing)" trigger="paid x402 swap quote" action="Web3 Write Universal Router" />
+              <WfRow name="ENSPrimaryNameSetter (new)" trigger="manual + onboarding" action="Web3 Write ReverseRegistrar.setName(label)" />
+              <WfRow name="ENSAvatarSync (new)" trigger="INFT mint/transfer confirm-transfer" action="Web3 Write PublicResolver.setText(avatar)" />
+              <WfRow name="GatewayCacheInvalidator (new)" trigger="INFT MemoryReencrypted/Staled" action="webhook → /api/ens-gateway/cache/invalidate" />
+            </tbody>
+          </table>
+          <p className="text-(--color-muted)">
+            <strong>Heartbeat + ReputationCache used to write to chain</strong>{" "}
+            (<Code>setText</Code> on the ENS PublicResolver per quote, ~14k
+            gas burned per fire). PR #13 swapped their <Code>Web3 Write</Code>
+            nodes for <Code>Webhook POST</Code> nodes pointing at our app —
+            same trigger, same KeeperHub run visibility, but writes Redis
+            instead of chain. Workflows still appear on{" "}
+            <Link href="/keeperhub" className="link">/keeperhub</Link> with
+            green checkmarks; gas drain went from real to zero.
+          </p>
+          <p className="text-(--color-muted)">
+            <strong>Cross-link:</strong>{" "}
+            <Code>ENSAvatarSync</Code> and{" "}
+            <Code>GatewayCacheInvalidator</Code> are triggered by the W1
+            INFT oracle&apos;s <Code>/api/inft/oracle/confirm-transfer</Code>
+            route the moment a <Code>transferWithProof</Code> tx is mined.
+            Avatar gets re-pointed at the new tokenId; ENS gateway cache for
+            <Code>memory-rotations</Code> et al. is purged so the next
+            ENS query returns fresh values.
+          </p>
+        </div>
+      </section>
+
       <section id="arch-contracts" className="mt-12 reveal reveal-3">
-        <Header marker="∇08" title="contract addresses — newest deploy" />
+        <Header marker="∇14" title="contract addresses — full ledger" />
         <div className="card-flat text-xs font-mono space-y-2 overflow-x-auto">
           <p className="font-sans text-sm text-(--color-muted) mb-3">
-            Deployed 2026-04-29 as part of W1 (issue #11 / spec
+            Deployed 2026-04-29 / 2026-04-30 as part of W1 + W2 + W3
+            (issue #11 / spec
             2026-04-28-agent-identity-package-design.md).
           </p>
+          <p className="font-sans text-xs text-(--color-muted) mt-2">w1 inft</p>
           <Row label="IdentityRegistryV2-b" addr="0xc456e7123BD79F96aDb590b97b9d0E2B0c2B09D5" />
           <Row label="AgentINFTVerifier   " addr="0x6D7a819022b41879D82a5FA035F71F8461a608d3" />
           <Row label="AgentINFT           " addr="0x103B2F28480c57ba49efeF50379Ef674d805DeDA" />
           <Row label="AgentBids           " addr="0x58C4F095474430314611D0784BeDF93bDB0b8453" />
           <Row label="AgentMerger         " addr="0x809cA3DB368a7d29DB98e0520688705D3eB413D1" />
           <Row label="INFT_ORACLE (off-chain signer)" addr="0x002d887C28cE85D9AB16BFaA26C670a8e0667A70" />
+          <p className="font-sans text-xs text-(--color-muted) mt-4">w2 ens gateway</p>
+          <Row label="OffchainResolver    " addr="0x4F956e6521A4B87b9f9b2D5ED191fB6134Bc8C17" />
+          <Row label="INFT_GATEWAY (off-chain signer)" addr="0xe358F777daF973E64d0F9b2e73bc34e4C7F65c9b" />
+          <Row label="ENS Registry (Sepolia)" addr="0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e" />
+          <p className="font-sans text-xs text-(--color-muted) mt-4">w3 wallets with primary names</p>
+          <Row label="agent-eoa.tradewise.agentlab.eth" addr="0x7a83678e330a0C565e6272498FFDF421621820A3" />
+          <Row label="pricewatch-deployer.agentlab.eth" addr="0xBf5df5c89b1eCa32C1E8AC7ECdd93d44F86F2469" />
+          <Row label="validator.agentlab.eth" addr="0x01340D5A7A6995513C0C3EdF0367236e5b9C83F6" />
+          <Row label="keeperhub.agentlab.eth (turnkey)" addr="0xB28cC07F397Af54c89b2Ff06b6c595F282856539" />
+          <p className="font-sans text-xs text-(--color-muted) mt-4">misc</p>
           <Row label="USDC (Sepolia)      " addr="0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" />
           <p className="font-sans text-sm text-(--color-muted) pt-3">
             Memory blob anchor for tokenId=1:{" "}
@@ -863,6 +1077,36 @@ function ByteRow({ off, field, desc }: { off: string; field: string; desc: strin
       <td className="py-2 pr-4 whitespace-nowrap text-(--color-fg)">{off}</td>
       <td className="py-2 pr-4 whitespace-nowrap text-(--color-fg)">{field}</td>
       <td className="py-2 text-(--color-muted)">{desc}</td>
+    </tr>
+  );
+}
+
+function RecordRow({ keyName, source, link }: { keyName: string; source: string; link: string }) {
+  return (
+    <tr className="border-t border-(--color-border) align-top">
+      <td className="py-2 pr-4 whitespace-nowrap text-(--color-fg)">{keyName}</td>
+      <td className="py-2 pr-4 text-(--color-muted)">{source}</td>
+      <td className="py-2 text-(--color-muted)">{link}</td>
+    </tr>
+  );
+}
+
+function NameRow({ role, addr, name }: { role: string; addr: string; name: string }) {
+  return (
+    <tr className="border-t border-(--color-border) align-top">
+      <td className="py-2 pr-4 whitespace-nowrap text-(--color-muted)">{role}</td>
+      <td className="py-2 pr-4 whitespace-nowrap text-(--color-fg)">{addr}</td>
+      <td className="py-2 text-(--color-fg)">{name}</td>
+    </tr>
+  );
+}
+
+function WfRow({ name, trigger, action }: { name: string; trigger: string; action: string }) {
+  return (
+    <tr className="border-t border-(--color-border) align-top">
+      <td className="py-2 pr-4 whitespace-nowrap text-(--color-fg)">{name}</td>
+      <td className="py-2 pr-4 text-(--color-muted)">{trigger}</td>
+      <td className="py-2 text-(--color-muted)">{action}</td>
     </tr>
   );
 }
