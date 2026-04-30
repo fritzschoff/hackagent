@@ -260,11 +260,26 @@ async function computeTextRecord(
     }
 
     // ---- avatar: eip155:<chainId>/erc721:<INFT>/<tokenId> ----
+    // For labels with their own tokenId (tradewise.agentlab.eth) we point
+    // at the agent's INFT directly. For nested wallet labels like
+    // agent-eoa.tradewise.agentlab.eth, we fall back to the avatar of the
+    // parent agent label so MetaMask / wallet UIs still surface a logo.
     case "avatar": {
-      if (agent.tokenId === null) return "";
       const addrs = await getSepoliaAddresses();
-      if (!addrs.inftAddress) return "";
-      return `eip155:11155111/erc721:${addrs.inftAddress}/${agent.tokenId}`;
+      if (agent.tokenId !== null && addrs.inftAddress) {
+        return `eip155:11155111/erc721:${addrs.inftAddress}/${agent.tokenId}`;
+      }
+      // Walk up the label tree until we find a parent label with a tokenId.
+      const parts = label.split(".");
+      while (parts.length > 2) {
+        parts.shift();
+        const parent = parts.join(".");
+        const parentAgent = await labelToAgent(parent);
+        if (parentAgent?.tokenId !== null && parentAgent?.tokenId !== undefined && addrs.inftAddress) {
+          return `eip155:11155111/erc721:${addrs.inftAddress}/${parentAgent.tokenId}`;
+        }
+      }
+      return "";
     }
 
     default:
