@@ -2,6 +2,7 @@ import { getSepoliaAddresses } from "@/lib/edge-config";
 import { readInft } from "@/lib/inft";
 import { AGENT_ENS } from "@/lib/ens";
 import { readStandingBids, readBidHistory, formatUsdc } from "@/lib/bids";
+import { readAgentTelemetry } from "@/lib/ens-records";
 import BidControls from "./bid-controls";
 import SiteNav from "@/components/site-nav";
 import MemoryStaleBadge from "@/components/memory-stale-badge";
@@ -34,12 +35,18 @@ export default async function InftPage() {
         })
       : null;
 
-  const [standingBids, bidHistory] = bidsAddress
-    ? await Promise.all([
-        readStandingBids({ bidsAddress, tokenId }),
-        readBidHistory({ bidsAddress, tokenId, limit: 10 }),
-      ])
-    : [[], []];
+  const [bidsResult, ensTelemetry] = await Promise.all([
+    bidsAddress
+      ? Promise.all([
+          readStandingBids({ bidsAddress, tokenId }),
+          readBidHistory({ bidsAddress, tokenId, limit: 10 }),
+        ])
+      : null,
+    readAgentTelemetry("tradewise.agentlab.eth"),
+  ]);
+
+  const standingBids = bidsResult ? bidsResult[0] : [];
+  const bidHistory = bidsResult ? bidsResult[1] : [];
 
   return (
     <main className="mx-auto max-w-5xl px-6 md:px-10 pb-24">
@@ -162,10 +169,35 @@ export default async function InftPage() {
             </div>
           </div>
 
-          {/* ── Bidding ── */}
+          {/* ── ENS gateway telemetry ── */}
           <div>
             <div className="flex items-baseline gap-5 mb-5">
               <span className="section-marker">§02</span>
+              <div>
+                <h2 className="display text-2xl">live telemetry</h2>
+                <p className="tag mt-1">via ENS gateway · W2 CCIP-Read</p>
+              </div>
+            </div>
+            <div className="card-flat">
+              <dl className="grid grid-cols-1 gap-3 text-xs font-mono">
+                <Row label="rotations" value={ensTelemetry.rotations ?? "—"} />
+                <Row label="inft-tradeable" value={ensTelemetry.inftTradeable ?? "—"} />
+                <Row label="last-seen-at" value={ensTelemetry.lastSeenAt ?? "—"} />
+                <Row label="reputation-summary" value={ensTelemetry.reputationSummary ?? "—"} />
+                <Row label="outstanding-bids" value={ensTelemetry.outstandingBids ?? "—"} />
+              </dl>
+              <p className="mt-3 text-[11px] text-(--color-muted)">
+                Records resolved from <code>tradewise.agentlab.eth</code> via the W2 offchain
+                resolver (EIP-3668). Values show &quot;—&quot; until the OffchainResolver is deployed
+                and <code>agentlab.eth</code>&apos;s resolver slot is flipped (M5).
+              </p>
+            </div>
+          </div>
+
+          {/* ── Bidding ── */}
+          <div>
+            <div className="flex items-baseline gap-5 mb-5">
+              <span className="section-marker">§03</span>
               <div>
                 <h2 className="display text-2xl">bidding</h2>
                 <p className="tag mt-1">
@@ -238,7 +270,7 @@ export default async function InftPage() {
           {bidHistory.length > 0 ? (
             <div>
               <div className="flex items-baseline gap-5 mb-5">
-                <span className="section-marker">§03</span>
+                <span className="section-marker">§04</span>
                 <div>
                   <h2 className="display text-2xl">bid history</h2>
                   <p className="tag mt-1">on-chain audit trail</p>
