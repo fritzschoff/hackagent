@@ -1,5 +1,5 @@
 contracts
-docs
+/docs
 scripts
 *.md
 !app/**/*.md
