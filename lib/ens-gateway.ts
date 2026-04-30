@@ -132,13 +132,12 @@ export async function computeRecord(
 
   if (selector === ADDR_SELECTOR || selector === ADDR_COIN_SELECTOR) {
     const addr = await computeAddr(label);
-    // addr(bytes32) → bytes  (the 20-byte address as ABI bytes)
-    const addrBytes = hexToBytes(addr.slice(2));
+    // addr(bytes32) → abi.encode(address)
+    // The CCIP-Read client (viem getEnsAddress) decodes resolveWithProof's result
+    // as the return type of addr(bytes32) which is `address`. We must encode
+    // as address so abi.decode(result, (address)) yields the correct value.
     return {
-      encoded: encodeAbiParameters(
-        [{ type: "bytes" }],
-        [("0x" + bytesToHex(addrBytes)) as `0x${string}`],
-      ),
+      encoded: encodeAbiParameters([{ type: "address" }], [addr]),
     };
   }
 
