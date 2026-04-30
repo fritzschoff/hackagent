@@ -74,13 +74,19 @@ export type KeeperHubKind =
   | "swap"
   | "heartbeat"
   | "reputation-cache"
-  | "compliance-attest";
+  | "compliance-attest"
+  | "primary-name"
+  | "avatar-sync"
+  | "gateway-invalidate";
 
 const ENV_BY_KIND: Record<KeeperHubKind, string> = {
   swap: "KEEPERHUB_WORKFLOW_ID_SWAP",
   heartbeat: "KEEPERHUB_WORKFLOW_ID_HEARTBEAT",
   "reputation-cache": "KEEPERHUB_WORKFLOW_ID_REPUTATION_CACHE",
   "compliance-attest": "KEEPERHUB_WORKFLOW_ID_COMPLIANCE_ATTEST",
+  "primary-name": "KEEPERHUB_WORKFLOW_ID_PRIMARY_NAME",
+  "avatar-sync": "KEEPERHUB_WORKFLOW_ID_AVATAR_SYNC",
+  "gateway-invalidate": "KEEPERHUB_WORKFLOW_ID_GATEWAY_INVALIDATE",
 };
 
 const EDGE_KEY_BY_KIND: Record<KeeperHubKind, string> = {
@@ -88,6 +94,9 @@ const EDGE_KEY_BY_KIND: Record<KeeperHubKind, string> = {
   heartbeat: "keeperhub_workflow_heartbeat",
   "reputation-cache": "keeperhub_workflow_reputation_cache",
   "compliance-attest": "keeperhub_workflow_compliance_attest",
+  "primary-name": "keeperhub_workflow_primary_name",
+  "avatar-sync": "keeperhub_workflow_avatar_sync",
+  "gateway-invalidate": "keeperhub_workflow_gateway_invalidate",
 };
 
 export async function getKeeperHubWorkflowIdByKind(
