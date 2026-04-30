@@ -1,0 +1,1 @@
+{"network":"sepolia","chainId":11155111,"offchainResolver":"0x4F956e6521A4B87b9f9b2D5ED191fB6134Bc8C17","signer":"0xe358F777daF973E64d0F9b2e73bc34e4C7F65c9b","gatewayUrl":"https://hackagent-nine.vercel.app/api/ens-gateway/{sender}/{data}.json"}
