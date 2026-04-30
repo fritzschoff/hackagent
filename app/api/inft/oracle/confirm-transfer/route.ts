@@ -5,6 +5,7 @@ import { commitPending, rotations } from "@/lib/inft-redis";
 import { sepoliaPublicClient } from "@/lib/wallets";
 import { getSepoliaAddresses } from "@/lib/edge-config";
 import AgentINFTAbi from "@/lib/abis/AgentINFT.json";
+import { triggerKeeperHubByKind } from "@/lib/keeperhub";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,6 +89,34 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const rot = await rotations(tokenId);
   void AgentINFTAbi; // referenced for type context
+
+  // Fire-and-forget triggers — best-effort; don't fail the route on these.
+  // Avatar sync — sets ENS avatar text record to the new INFT URI.
+  triggerKeeperHubByKind("avatar-sync", {
+    ensName: "tradewise.agentlab.eth",
+    tokenId: tokenId.toString(),
+    contract: inftAddress,
+    chainId: 11155111,
+  }).catch((err) => {
+    console.error("[confirm-transfer] avatar-sync trigger failed:", err);
+  });
+
+  // Gateway cache invalidate — clear stale ENS gateway cache for this agent.
+  triggerKeeperHubByKind("gateway-invalidate", {
+    event: "MemoryReencrypted",
+    agentId: 1,
+    tokenId: tokenId.toString(),
+    keys: [
+      `inft:meta:${tokenId}:rotations`,
+      `reputation:summary:1`,
+      `agent:1:last-seen`,
+    ],
+  }).catch((err) => {
+    console.error(
+      "[confirm-transfer] gateway-invalidate trigger failed:",
+      err,
+    );
+  });
 
   return NextResponse.json({ ok: true, rotations: rot });
 }
