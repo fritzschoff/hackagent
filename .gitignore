@@ -29,3 +29,7 @@ next-env.d.ts
 *-1.png
 *.png
 .env.local.*
+
+# Internal notes, research, deploy logs — kept locally, not part of the repo.
+# FEEDBACK.md at the root is the only documentation tracked (Uniswap prize req).
+docs/

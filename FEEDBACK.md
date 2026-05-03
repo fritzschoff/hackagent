@@ -5,9 +5,8 @@ agent whose paid product is *"reliable Uniswap quotes for other agents,
 billed in x402 USDC on Base Sepolia"*. Real notes from shipping code,
 not speculation.
 
-> Cross-sponsor notes (KeeperHub, ENS, 0G, x402, Vercel) live in
-> [`docs/dx-notes.md`](./docs/dx-notes.md) so this file stays scoped to
-> the Uniswap prize gate.
+> This file is scoped to the Uniswap prize gate. Cross-sponsor notes
+> (KeeperHub, ENS, 0G, x402, Vercel) are kept in our internal notes.
 
 ---
 
