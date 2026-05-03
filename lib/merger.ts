@@ -1,5 +1,6 @@
 import { type Address, type Hex, type AbiEvent } from "viem";
 import { sepoliaPublicClient } from "@/lib/wallets";
+import { getLogsChunked } from "@/lib/log-chunks";
 import AgentMergerAbi from "@/lib/abis/AgentMerger.json";
 
 const ABI = AgentMergerAbi as readonly unknown[];
@@ -48,45 +49,39 @@ export async function readMergerHistory(args: {
       ? tip - 100_000n
       : SEPOLIA_DEPLOY_BLOCK_DEFAULT;
 
-  try {
-    const logs = await client.getLogs({
-      address: args.mergerAddress,
-      event: MERGED_EVENT,
-      fromBlock,
-      toBlock: tip,
-    });
-    const mapped = logs.map((log) => {
-      const a = log.args as unknown as {
-        mergerIndex: bigint;
-        mergedAgentId: bigint;
-        sourceAgentId1: bigint;
-        sourceAgentId2: bigint;
-        sourceTokenId1: bigint;
-        sourceTokenId2: bigint;
-        sealedMemoryRoot: Hex;
-        recordedBy: Address;
-      };
-      return {
-        mergerIndex: a.mergerIndex,
-        mergedAgentId: a.mergedAgentId,
-        sourceAgentId1: a.sourceAgentId1,
-        sourceAgentId2: a.sourceAgentId2,
-        sourceTokenId1: a.sourceTokenId1,
-        sourceTokenId2: a.sourceTokenId2,
-        sealedMemoryRoot: a.sealedMemoryRoot,
-        mergedAt: log.blockNumber,
-        recordedBy: a.recordedBy,
-      } satisfies MergerLineage;
-    });
-    mapped.sort((a, b) => Number(b.mergerIndex - a.mergerIndex));
-    return mapped.slice(0, args.limit ?? 20);
-  } catch (err) {
-    console.error(
-      "[merger] readMergerHistory failed:",
-      err instanceof Error ? err.message : err,
-    );
-    return [];
-  }
+  const logs = await getLogsChunked(client, {
+    label: "merger",
+    address: args.mergerAddress,
+    event: MERGED_EVENT,
+    fromBlock,
+    toBlock: tip,
+  });
+  type MergerArgs = {
+    mergerIndex: bigint;
+    mergedAgentId: bigint;
+    sourceAgentId1: bigint;
+    sourceAgentId2: bigint;
+    sourceTokenId1: bigint;
+    sourceTokenId2: bigint;
+    sealedMemoryRoot: Hex;
+    recordedBy: Address;
+  };
+  const mapped = logs.map((log) => {
+    const a = log.args as unknown as MergerArgs;
+    return {
+      mergerIndex: a.mergerIndex,
+      mergedAgentId: a.mergedAgentId,
+      sourceAgentId1: a.sourceAgentId1,
+      sourceAgentId2: a.sourceAgentId2,
+      sourceTokenId1: a.sourceTokenId1,
+      sourceTokenId2: a.sourceTokenId2,
+      sealedMemoryRoot: a.sealedMemoryRoot,
+      mergedAt: log.blockNumber,
+      recordedBy: a.recordedBy,
+    } satisfies MergerLineage;
+  });
+  mapped.sort((a, b) => Number(b.mergerIndex - a.mergerIndex));
+  return mapped.slice(0, args.limit ?? 20);
 }
 
 export async function readEffectiveFeedback(args: {

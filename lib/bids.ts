@@ -1,5 +1,6 @@
 import { type Address, type Hex, type AbiEvent } from "viem";
 import { sepoliaPublicClient } from "@/lib/wallets";
+import { getLogsChunked } from "@/lib/log-chunks";
 import AgentBidsAbi from "@/lib/abis/AgentBids.json";
 
 const ABI = AgentBidsAbi as readonly unknown[];
@@ -15,50 +16,6 @@ const BID_ACCEPTED = (ABI as AbiEvent[]).find(
 ) as AbiEvent;
 
 const SEPOLIA_DEPLOY_BLOCK_DEFAULT = 6_000_000n;
-const LOG_CHUNK_BLOCKS = 49_000n;
-
-type MinedLog = {
-  args: Record<string, unknown>;
-  transactionHash: Hex;
-  blockNumber: bigint;
-};
-
-async function getLogsChunked(
-  client: ReturnType<typeof sepoliaPublicClient>,
-  args: {
-    address: Address;
-    event: AbiEvent;
-    eventArgs?: Record<string, unknown>;
-    fromBlock: bigint;
-    toBlock: bigint;
-  },
-): Promise<MinedLog[]> {
-  const out: MinedLog[] = [];
-  let from = args.fromBlock;
-  while (from <= args.toBlock) {
-    const to =
-      from + LOG_CHUNK_BLOCKS - 1n > args.toBlock
-        ? args.toBlock
-        : from + LOG_CHUNK_BLOCKS - 1n;
-    try {
-      const logs = await client.getLogs({
-        address: args.address,
-        event: args.event,
-        args: args.eventArgs,
-        fromBlock: from,
-        toBlock: to,
-      });
-      out.push(...(logs as unknown as MinedLog[]));
-    } catch (e) {
-      console.error(
-        `[bids] getLogs ${args.event.name} ${from}..${to} failed:`,
-        (e as Error).message,
-      );
-    }
-    from = to + 1n;
-  }
-  return out;
-}
 
 export type StandingBid = {
   bidder: Address;
@@ -149,6 +106,7 @@ export async function readBidHistory(args: {
   try {
     const [placedLogs, withdrawnLogs, acceptedLogs] = await Promise.all([
       getLogsChunked(client, {
+        label: "bids",
         address: args.bidsAddress,
         event: BID_PLACED,
         eventArgs: { tokenId: args.tokenId },
@@ -156,6 +114,7 @@ export async function readBidHistory(args: {
         toBlock: tip,
       }),
       getLogsChunked(client, {
+        label: "bids",
         address: args.bidsAddress,
         event: BID_WITHDRAWN,
         eventArgs: { tokenId: args.tokenId },
@@ -163,6 +122,7 @@ export async function readBidHistory(args: {
         toBlock: tip,
       }),
       getLogsChunked(client, {
+        label: "bids",
         address: args.bidsAddress,
         event: BID_ACCEPTED,
         eventArgs: { tokenId: args.tokenId },

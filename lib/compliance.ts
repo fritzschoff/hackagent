@@ -6,6 +6,7 @@ import {
   toBytes,
 } from "viem";
 import { sepoliaPublicClient } from "@/lib/wallets";
+import { getLogsChunked } from "@/lib/log-chunks";
 import ComplianceManifestAbi from "@/lib/abis/ComplianceManifest.json";
 
 const ABI = ComplianceManifestAbi as readonly unknown[];
@@ -186,116 +187,112 @@ export async function readComplianceHistory(args: {
   const fromBlock =
     tip > SEPOLIA_DEPLOY_BLOCK_DEFAULT ? tip - 100_000n : SEPOLIA_DEPLOY_BLOCK_DEFAULT;
 
-  try {
-    const [committed, updated, challenged, slashed] = await Promise.all([
-      client.getLogs({
-        address: args.registry,
-        event: COMMITTED,
-        args: { agentId: args.agentId },
-        fromBlock,
-        toBlock: tip,
-      }),
-      client.getLogs({
-        address: args.registry,
-        event: UPDATED,
-        args: { agentId: args.agentId },
-        fromBlock,
-        toBlock: tip,
-      }),
-      client.getLogs({
-        address: args.registry,
-        event: CHALLENGED,
-        args: { agentId: args.agentId },
-        fromBlock,
-        toBlock: tip,
-      }),
-      client.getLogs({
-        address: args.registry,
-        event: SLASHED,
-        args: { agentId: args.agentId },
-        fromBlock,
-        toBlock: tip,
-      }),
-    ]);
+  const [committed, updated, challenged, slashed] = await Promise.all([
+    getLogsChunked(client, {
+      label: "compliance",
+      address: args.registry,
+      event: COMMITTED,
+      eventArgs: { agentId: args.agentId },
+      fromBlock,
+      toBlock: tip,
+    }),
+    getLogsChunked(client, {
+      label: "compliance",
+      address: args.registry,
+      event: UPDATED,
+      eventArgs: { agentId: args.agentId },
+      fromBlock,
+      toBlock: tip,
+    }),
+    getLogsChunked(client, {
+      label: "compliance",
+      address: args.registry,
+      event: CHALLENGED,
+      eventArgs: { agentId: args.agentId },
+      fromBlock,
+      toBlock: tip,
+    }),
+    getLogsChunked(client, {
+      label: "compliance",
+      address: args.registry,
+      event: SLASHED,
+      eventArgs: { agentId: args.agentId },
+      fromBlock,
+      toBlock: tip,
+    }),
+  ]);
 
-    const events: ComplianceEvent[] = [];
-    for (const log of committed) {
-      const a = log.args as unknown as {
-        agentId: bigint;
-        agent: Address;
-        manifestRoot: Hex;
-        manifestUri: string;
-        bond: bigint;
-      };
-      events.push({
-        kind: "committed",
-        agentId: a.agentId,
-        agent: a.agent,
-        manifestRoot: a.manifestRoot,
-        manifestUri: a.manifestUri,
-        bond: a.bond,
-        txHash: log.transactionHash,
-        blockNumber: log.blockNumber,
-      });
-    }
-    for (const log of updated) {
-      const a = log.args as unknown as {
-        agentId: bigint;
-        newRoot: Hex;
-        newUri: string;
-      };
-      events.push({
-        kind: "updated",
-        agentId: a.agentId,
-        manifestRoot: a.newRoot,
-        manifestUri: a.newUri,
-        txHash: log.transactionHash,
-        blockNumber: log.blockNumber,
-      });
-    }
-    for (const log of challenged) {
-      const a = log.args as unknown as {
-        agentId: bigint;
-        challenger: Address;
-        challengerBond: bigint;
-        evidenceUri: string;
-      };
-      events.push({
-        kind: "challenged",
-        agentId: a.agentId,
-        challenger: a.challenger,
-        challengerBond: a.challengerBond,
-        evidenceUri: a.evidenceUri,
-        txHash: log.transactionHash,
-        blockNumber: log.blockNumber,
-      });
-    }
-    for (const log of slashed) {
-      const a = log.args as unknown as {
-        agentId: bigint;
-        challenger: Address;
-        challengerReward: bigint;
-        validatorReward: bigint;
-      };
-      events.push({
-        kind: "slashed",
-        agentId: a.agentId,
-        challenger: a.challenger,
-        challengerReward: a.challengerReward,
-        validatorReward: a.validatorReward,
-        txHash: log.transactionHash,
-        blockNumber: log.blockNumber,
-      });
-    }
-    events.sort((a, b) => Number(b.blockNumber - a.blockNumber));
-    return events.slice(0, args.limit ?? 20);
-  } catch (err) {
-    console.error(
-      "[compliance] readComplianceHistory failed:",
-      err instanceof Error ? err.message : err,
-    );
-    return [];
+  const events: ComplianceEvent[] = [];
+  for (const log of committed) {
+    const a = log.args as {
+      agentId: bigint;
+      agent: Address;
+      manifestRoot: Hex;
+      manifestUri: string;
+      bond: bigint;
+    };
+    events.push({
+      kind: "committed",
+      agentId: a.agentId,
+      agent: a.agent,
+      manifestRoot: a.manifestRoot,
+      manifestUri: a.manifestUri,
+      bond: a.bond,
+      txHash: log.transactionHash,
+      blockNumber: log.blockNumber,
+    });
   }
+  for (const log of updated) {
+    const a = log.args as {
+      agentId: bigint;
+      newRoot: Hex;
+      newUri: string;
+    };
+    events.push({
+      kind: "updated",
+      agentId: a.agentId,
+      manifestRoot: a.newRoot,
+      manifestUri: a.newUri,
+      txHash: log.transactionHash,
+      blockNumber: log.blockNumber,
+    });
+  }
+  for (const log of challenged) {
+    const a = log.args as {
+      agentId: bigint;
+      challenger: Address;
+      challengerBond: bigint;
+      evidenceUri: string;
+    };
+    events.push({
+      kind: "challenged",
+      agentId: a.agentId,
+      challenger: a.challenger,
+      challengerBond: a.challengerBond,
+      evidenceUri: a.evidenceUri,
+      txHash: log.transactionHash,
+      blockNumber: log.blockNumber,
+    });
+  }
+  for (const log of slashed) {
+    const a = log.args as {
+      agentId: bigint;
+      challenger: Address;
+      challengerReward: bigint;
+      validatorReward: bigint;
+    };
+    events.push({
+      kind: "slashed",
+      agentId: a.agentId,
+      challenger: a.challenger,
+      challengerReward: a.challengerReward,
+      validatorReward: a.validatorReward,
+      txHash: log.transactionHash,
+      blockNumber: log.blockNumber,
+    });
+  }
+  events.sort((a, b) => Number(b.blockNumber - a.blockNumber));
+  return events.slice(0, args.limit ?? 20);
 }
 
 /// Format a USDC bigint as "$X.XX".

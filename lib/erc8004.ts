@@ -9,6 +9,7 @@ import {
 import { sepoliaPublicClient, sepoliaWalletClient } from "@/lib/wallets";
 import type { WalletId } from "@/lib/wallets";
 import { getSepoliaAddresses } from "@/lib/edge-config";
+import { getLogsChunked } from "@/lib/log-chunks";
 import IdentityRegistryAbi from "@/lib/abis/IdentityRegistry.json";
 import ReputationRegistryAbi from "@/lib/abis/ReputationRegistry.json";
 import ValidationRegistryAbi from "@/lib/abis/ValidationRegistry.json";
@@ -26,45 +27,6 @@ const VALIDATION_RESPONSE_POSTED = (VAL_ABI as AbiEvent[]).find(
 ) as AbiEvent;
 
 const SEPOLIA_DEPLOY_BLOCK_DEFAULT = 6_000_000n;
-
-// Sepolia public RPCs (publicnode, thirdweb fallback) cap eth_getLogs at
-// 50k or 1k blocks respectively. Chunk to stay safely under the lower cap.
-const LOG_CHUNK_BLOCKS = 49_000n;
-
-async function getLogsChunked<T>(
-  client: ReturnType<typeof sepoliaPublicClient>,
-  args: {
-    address: Address;
-    event: AbiEvent;
-    fromBlock: bigint;
-    toBlock: bigint;
-  },
-): Promise<T[]> {
-  const out: T[] = [];
-  let from = args.fromBlock;
-  while (from <= args.toBlock) {
-    const to =
-      from + LOG_CHUNK_BLOCKS - 1n > args.toBlock
-        ? args.toBlock
-        : from + LOG_CHUNK_BLOCKS - 1n;
-    try {
-      const logs = await client.getLogs({
-        address: args.address,
-        event: args.event,
-        fromBlock: from,
-        toBlock: to,
-      });
-      out.push(...(logs as T[]));
-    } catch (e) {
-      console.error(
-        `getLogs ${args.event.name} ${from}..${to} failed:`,
-        (e as Error).message,
-      );
-    }
-    from = to + 1n;
-  }
-  return out;
-}
 
 export type FeedbackEntry = {
   agentId: bigint;
@@ -148,37 +110,37 @@ export async function readRecentFeedback(
       ? tip - 100_000n
       : SEPOLIA_DEPLOY_BLOCK_DEFAULT;
 
-  type LogShape = {
-    args: {
-      agentId: bigint;
-      client: Address;
-      score: number;
-      decimals: number;
-      tag: Hex;
-      timestamp: bigint;
-      detailUri: string;
-    };
-    transactionHash: Hex;
-    blockNumber: bigint;
-  };
-  const logs = await getLogsChunked<LogShape>(client, {
+  const logs = await getLogsChunked(client, {
+    label: "erc8004/feedback",
     address: reputationRegistry,
     event: FEEDBACK_POSTED,
     fromBlock,
     toBlock: tip,
   });
+  type FeedbackArgs = {
+    agentId: bigint;
+    client: Address;
+    score: number;
+    decimals: number;
+    tag: Hex;
+    timestamp: bigint;
+    detailUri: string;
+  };
   const recent = logs.slice(-limit).reverse();
-  return recent.map((log) => ({
-    agentId: log.args.agentId,
-    client: log.args.client,
-    score: Number(log.args.score),
-    decimals: Number(log.args.decimals),
-    tag: decodeTag(log.args.tag),
-    ts: Number(log.args.timestamp) * 1000,
-    txHash: log.transactionHash,
-    blockNumber: log.blockNumber,
-    detailUri: log.args.detailUri,
-  }));
+  return recent.map((log) => {
+    const a = log.args as unknown as FeedbackArgs;
+    return {
+      agentId: a.agentId,
+      client: a.client,
+      score: Number(a.score),
+      decimals: Number(a.decimals),
+      tag: decodeTag(a.tag),
+      ts: Number(a.timestamp) * 1000,
+      txHash: log.transactionHash,
+      blockNumber: log.blockNumber,
+      detailUri: a.detailUri,
+    };
+  });
 }
 
 export async function readRecentValidations(
@@ -195,35 +157,35 @@ export async function readRecentValidations(
       ? tip - 100_000n
       : SEPOLIA_DEPLOY_BLOCK_DEFAULT;
 
-  type LogShape = {
-    args: {
-      jobId: Hex;
-      validator: Address;
-      score: number;
-      decimals: number;
-      detailUri: string;
-      timestamp: bigint;
-    };
-    transactionHash: Hex;
-    blockNumber: bigint;
-  };
-  const logs = await getLogsChunked<LogShape>(client, {
+  const logs = await getLogsChunked(client, {
+    label: "erc8004/validations",
     address: validationRegistry,
     event: VALIDATION_RESPONSE_POSTED,
     fromBlock,
     toBlock: tip,
   });
+  type ValidationArgs = {
+    jobId: Hex;
+    validator: Address;
+    score: number;
+    decimals: number;
+    detailUri: string;
+    timestamp: bigint;
+  };
   const recent = logs.slice(-limit).reverse();
-  return recent.map((log) => ({
-    jobId: log.args.jobId,
-    validator: log.args.validator,
-    score: Number(log.args.score),
-    decimals: Number(log.args.decimals),
-    ts: Number(log.args.timestamp) * 1000,
-    txHash: log.transactionHash,
-    blockNumber: log.blockNumber,
-    detailUri: log.args.detailUri,
-  }));
+  return recent.map((log) => {
+    const a = log.args as unknown as ValidationArgs;
+    return {
+      jobId: a.jobId,
+      validator: a.validator,
+      score: Number(a.score),
+      decimals: Number(a.decimals),
+      ts: Number(a.timestamp) * 1000,
+      txHash: log.transactionHash,
+      blockNumber: log.blockNumber,
+      detailUri: a.detailUri,
+    };
+  });
 }
 
 export async function postFeedback(args: {

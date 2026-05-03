@@ -1,5 +1,6 @@
 import { type Address, type Hex, type AbiEvent } from "viem";
 import { sepoliaPublicClient } from "@/lib/wallets";
+import { getLogsChunked } from "@/lib/log-chunks";
 import ReputationCreditAbi from "@/lib/abis/ReputationCredit.json";
 
 const ABI = ReputationCreditAbi as readonly unknown[];
@@ -181,90 +182,81 @@ export async function readCreditHistory(args: {
       ? tip - 100_000n
       : SEPOLIA_DEPLOY_BLOCK_DEFAULT;
 
-  try {
-    const [borrowedLogs, repaidLogs, liqLogs] = await Promise.all([
-      client.getLogs({
-        address: args.creditAddress,
-        event: BORROWED,
-        args: { agentId: args.agentId },
-        fromBlock,
-        toBlock: tip,
-      }),
-      client.getLogs({
-        address: args.creditAddress,
-        event: REPAID,
-        args: { agentId: args.agentId },
-        fromBlock,
-        toBlock: tip,
-      }),
-      client.getLogs({
-        address: args.creditAddress,
-        event: LIQUIDATED,
-        args: { agentId: args.agentId },
-        fromBlock,
-        toBlock: tip,
-      }),
-    ]);
+  const [borrowedLogs, repaidLogs, liqLogs] = await Promise.all([
+    getLogsChunked(client, {
+      label: "credit",
+      address: args.creditAddress,
+      event: BORROWED,
+      eventArgs: { agentId: args.agentId },
+      fromBlock,
+      toBlock: tip,
+    }),
+    getLogsChunked(client, {
+      label: "credit",
+      address: args.creditAddress,
+      event: REPAID,
+      eventArgs: { agentId: args.agentId },
+      fromBlock,
+      toBlock: tip,
+    }),
+    getLogsChunked(client, {
+      label: "credit",
+      address: args.creditAddress,
+      event: LIQUIDATED,
+      eventArgs: { agentId: args.agentId },
+      fromBlock,
+      toBlock: tip,
+    }),
+  ]);
 
-    const events: CreditEvent[] = [];
-    for (const log of borrowedLogs) {
-      const a = log.args as unknown as {
-        agentId: bigint;
-        agentAddress: Address;
-        amount: bigint;
-        feedbackAtBorrow: bigint;
-      };
-      events.push({
-        kind: "borrowed",
-        agentId: a.agentId,
-        agentAddress: a.agentAddress,
-        amount: a.amount,
-        feedbackAtBorrow: a.feedbackAtBorrow,
-        txHash: log.transactionHash,
-        blockNumber: log.blockNumber,
-      });
-    }
-    for (const log of repaidLogs) {
-      const a = log.args as unknown as {
-        agentId: bigint;
-        payer: Address;
-        amount: bigint;
-      };
-      events.push({
-        kind: "repaid",
-        agentId: a.agentId,
-        payer: a.payer,
-        amount: a.amount,
-        txHash: log.transactionHash,
-        blockNumber: log.blockNumber,
-      });
-    }
-    for (const log of liqLogs) {
-      const a = log.args as unknown as {
-        agentId: bigint;
-        outstanding: bigint;
-        currentFeedback: bigint;
-        borrowedAtFeedback: bigint;
-      };
-      events.push({
-        kind: "liquidated",
-        agentId: a.agentId,
-        outstanding: a.outstanding,
-        currentFeedback: a.currentFeedback,
-        borrowedAtFeedback: a.borrowedAtFeedback,
-        txHash: log.transactionHash,
-        blockNumber: log.blockNumber,
-      });
-    }
-    events.sort((a, b) => Number(b.blockNumber - a.blockNumber));
-    return events.slice(0, args.limit ?? 20);
-  } catch (err) {
-    console.error(
-      "[credit] readCreditHistory failed:",
-      err instanceof Error ? err.message : err,
-    );
-    return [];
+  const events: CreditEvent[] = [];
+  for (const log of borrowedLogs) {
+    const a = log.args as {
+      agentId: bigint;
+      agentAddress: Address;
+      amount: bigint;
+      feedbackAtBorrow: bigint;
+    };
+    events.push({
+      kind: "borrowed",
+      agentId: a.agentId,
+      agentAddress: a.agentAddress,
+      amount: a.amount,
+      feedbackAtBorrow: a.feedbackAtBorrow,
+      txHash: log.transactionHash,
+      blockNumber: log.blockNumber,
+    });
   }
+  for (const log of repaidLogs) {
+    const a = log.args as { agentId: bigint; payer: Address; amount: bigint };
+    events.push({
+      kind: "repaid",
+      agentId: a.agentId,
+      payer: a.payer,
+      amount: a.amount,
+      txHash: log.transactionHash,
+      blockNumber: log.blockNumber,
+    });
+  }
+  for (const log of liqLogs) {
+    const a = log.args as {
+      agentId: bigint;
+      outstanding: bigint;
+      currentFeedback: bigint;
+      borrowedAtFeedback: bigint;
+    };
+    events.push({
+      kind: "liquidated",
+      agentId: a.agentId,
+      outstanding: a.outstanding,
+      currentFeedback: a.currentFeedback,
+      borrowedAtFeedback: a.borrowedAtFeedback,
+      txHash: log.transactionHash,
+      blockNumber: log.blockNumber,
+    });
+  }
+  events.sort((a, b) => Number(b.blockNumber - a.blockNumber));
+  return events.slice(0, args.limit ?? 20);
 }
 
 export function formatUsdc(amount: bigint): string {
