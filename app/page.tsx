@@ -10,6 +10,7 @@ import { readRecentFeedback, readRecentValidations } from "@/lib/erc8004";
 import { getSepoliaAddresses } from "@/lib/edge-config";
 import { AGENT_ENS, resolveAgentEns } from "@/lib/ens";
 import SiteNav from "@/components/site-nav";
+import PaginatedList from "@/components/paginated-list";
 
 // Force dynamic — page calls resolveAgentEns() which now reads through the
 // W2 CCIP-Read gateway. Static generation can't complete in 60s. Render
@@ -46,13 +47,13 @@ export default async function DashboardPage() {
     pricewatchCalls,
     pricewatchEarningsCents,
   ] = await Promise.all([
-    getRecentJobs(50),
+    getRecentJobs(200),
     getEarningsCents(),
     getCronStatuses(),
     readRecentFeedback(10),
     readRecentValidations(10),
     getSepoliaAddresses(),
-    getRecentKeeperhubRuns(10),
+    getRecentKeeperhubRuns(200),
     resolveAgentEns(),
     getRecentPricewatchCalls(10),
     getPricewatchEarningsCents(),
@@ -365,100 +366,87 @@ export default async function DashboardPage() {
         sub="base sepolia"
       >
         <div className="card-flat p-0">
-          {khRuns.length === 0 ? (
-            <p className="p-5 text-sm text-(--color-muted)">
-              no workflow runs yet
-            </p>
-          ) : (
-            <ul>
-              {khRuns.map((r) => (
-                <li
-                  key={r.workflowRunId}
-                  className="flex items-baseline gap-3 px-5 py-3 border-b border-(--color-rule) last:border-0 font-mono text-xs"
-                >
-                  <span className="text-(--color-muted)">job</span>
-                  <span>{r.jobId.slice(0, 8)}…</span>
-                  <span className="text-(--color-muted)">run</span>
-                  <span>{r.workflowRunId.slice(0, 8)}…</span>
+          <PaginatedList
+            emptyMessage="no workflow runs yet"
+            rows={khRuns.map((r) => ({
+              key: `${r.workflowRunId}-${r.ts}`,
+              node: (
+                <div className="grid grid-cols-1 md:grid-cols-[auto_1fr_auto] gap-x-3 gap-y-1 items-baseline font-mono text-xs">
+                  <span className="tag">{r.kind}</span>
+                  <div className="grid grid-cols-[5rem_1fr] gap-x-2 gap-y-0.5 break-all">
+                    <span className="text-(--color-muted)">job</span>
+                    <span>{r.jobId}</span>
+                    <span className="text-(--color-muted)">run</span>
+                    <span>{r.workflowRunId}</span>
+                    {r.summary ? (
+                      <>
+                        <span className="text-(--color-muted)">summary</span>
+                        <span className="text-(--color-muted)">{r.summary}</span>
+                      </>
+                    ) : null}
+                  </div>
                   {r.txHash ? (
                     <a
-                      href={`${BASE_SEPOLIA_BASESCAN}/tx/${r.txHash}`}
+                      href={`${r.kind === "swap" ? BASE_SEPOLIA_BASESCAN : SEPOLIA_ETHERSCAN}/tx/${r.txHash}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="link ml-auto"
+                      className="link break-all md:text-right"
                     >
-                      {r.txHash.slice(0, 10)}… →
+                      {r.txHash} →
                     </a>
                   ) : (
-                    <span className="text-(--color-muted) ml-auto">no tx</span>
+                    <span className="text-(--color-muted) md:text-right">
+                      no tx
+                    </span>
                   )}
-                </li>
-              ))}
-            </ul>
-          )}
+                </div>
+              ),
+            }))}
+          />
         </div>
       </Section>
 
       {/* RECENT JOBS */}
       <Section number="07" title="recent jobs">
         <div className="card-flat p-0">
-          {jobs.length === 0 ? (
-            <p className="p-5 text-sm text-(--color-muted)">
-              no paid jobs yet — once cron is live, simulated clients post every
-              2-5 minutes
-            </p>
-          ) : (
-            <ul>
-              {jobs.map((j) => (
-                <li
-                  key={j.id}
-                  className="flex items-baseline gap-3 px-5 py-3 border-b border-(--color-rule) last:border-0 text-sm"
-                >
-                  <span className="font-mono text-xs">
-                    {j.intent.tokenIn.slice(0, 6)}… → {j.intent.tokenOut.slice(0, 6)}…
-                  </span>
+          <PaginatedList
+            emptyMessage="no paid jobs yet — once cron is live, simulated clients post every 2-5 minutes"
+            rows={jobs.map((j) => ({
+              key: j.id,
+              node: (
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-x-3 gap-y-1 items-baseline">
+                  <div className="grid grid-cols-[5rem_1fr] gap-x-2 gap-y-0.5 font-mono text-xs break-all">
+                    <span className="text-(--color-muted)">job</span>
+                    <span>{j.id}</span>
+                    <span className="text-(--color-muted)">tokenIn</span>
+                    <span>{j.intent.tokenIn}</span>
+                    <span className="text-(--color-muted)">tokenOut</span>
+                    <span>{j.intent.tokenOut}</span>
+                  </div>
                   {j.paymentTx ? (
                     <a
                       href={`${BASE_SEPOLIA_BASESCAN}/tx/${j.paymentTx}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="font-mono text-xs text-(--color-muted) link ml-auto"
+                      className="font-mono text-xs link break-all md:text-right"
                     >
-                      x402 →
+                      {j.paymentTx} →
                     </a>
                   ) : (
-                    <span className="ml-auto" />
+                    <span className="text-(--color-muted) font-mono text-xs md:text-right">
+                      no tx
+                    </span>
                   )}
-                  <span className="display-italic text-(--color-accent) text-base">
+                  <span className="display-italic text-(--color-accent) text-base md:text-right">
                     +0.10 USDC
                   </span>
-                </li>
-              ))}
-            </ul>
-          )}
+                </div>
+              ),
+            }))}
+          />
         </div>
       </Section>
 
-      {/* COLOPHON */}
-      <footer className="mt-16 pt-8 border-t border-(--color-rule) flex flex-wrap items-baseline justify-between gap-4 text-xs text-(--color-muted)">
-        <p className="display-italic text-base">
-          colophon —{" "}
-          <span className="font-mono text-xs not-italic">
-            agentId #{addresses.agentId} · IdentityRegistry{" "}
-            <a
-              href={`${SEPOLIA_ETHERSCAN}/address/${addresses.identityRegistry}`}
-              target="_blank"
-              rel="noreferrer"
-              className="link"
-            >
-              {addresses.identityRegistry.slice(0, 10)}…
-            </a>
-          </span>
-        </p>
-        <p className="font-mono">
-          set in <span className="display-italic">Fraunces</span> &amp; JetBrains Mono.
-        </p>
-      </footer>
     </main>
   );
 }

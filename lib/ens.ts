@@ -82,9 +82,9 @@ export async function resolveAgentEns(opts?: {
   }
 
   // Dynamic fields (last-seen-at, reputation-summary) live in Redis now —
-  // KeeperHub heartbeat + reputation-cache workflows pulse those keys via
-  // /api/keeperhub/{heartbeat,reputation}-pulse instead of writing to chain.
-  // On-chain text records are used only as a fallback for cold reads.
+  // the KeeperHub heartbeat + reputation-cache webhooks pulse those keys.
+  // The on-chain text records were last written before the cutover and are
+  // permanently stale, so we don't fall back to them.
   const dynamicLastSeen = redis
     ? await redis.get(`ens:dynamic:${AGENT_ID_DEFAULT}:last-seen-at`).catch(() => null)
     : null;
@@ -92,23 +92,14 @@ export async function resolveAgentEns(opts?: {
     ? await redis.get(`ens:dynamic:${AGENT_ID_DEFAULT}:reputation-summary`).catch(() => null)
     : null;
 
-  const [
-    address,
-    agentCardUrl,
-    registration,
-    description,
-    url,
-    onChainLastSeen,
-    onChainRepSummary,
-  ] = await Promise.all([
-    readEnsAddressSafe(AGENT_ENS),
-    readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.agentCard),
-    readEnsTextSafe(AGENT_ENS, REGISTRATION_KEY),
-    readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.description),
-    readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.url),
-    dynamicLastSeen ? Promise.resolve(null) : readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.lastSeenAt),
-    dynamicRepSummary ? Promise.resolve(null) : readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.reputationSummary),
-  ]);
+  const [address, agentCardUrl, registration, description, url] =
+    await Promise.all([
+      readEnsAddressSafe(AGENT_ENS),
+      readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.agentCard),
+      readEnsTextSafe(AGENT_ENS, REGISTRATION_KEY),
+      readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.description),
+      readEnsTextSafe(AGENT_ENS, ENS_TEXT_KEYS.url),
+    ]);
 
   const resolved: ResolvedEns = {
     name: AGENT_ENS,
@@ -117,8 +108,8 @@ export async function resolveAgentEns(opts?: {
     registrationRecord: registration,
     description,
     url,
-    lastSeenAt: dynamicLastSeen ?? onChainLastSeen,
-    reputationSummary: dynamicRepSummary ?? onChainRepSummary,
+    lastSeenAt: dynamicLastSeen,
+    reputationSummary: dynamicRepSummary,
     ensip25Key: REGISTRATION_KEY,
   };
 

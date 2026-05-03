@@ -74,10 +74,18 @@ export async function POST(req: NextRequest) {
     await r.set(`ens:dynamic:${agentId}:reputation-summary`, summary, "EX", 86400);
   }
 
+  // Coalesce missing/empty/unsubstituted-template ids to a derived value so
+  // the dashboard never shows a literal "{{...}}" or empty runId.
+  const rawRunId = parsed.data.workflowRunId ?? "";
+  const workflowRunId =
+    rawRunId === "" || rawRunId.includes("{{") || rawRunId.includes("}}")
+      ? `rep-pulse-${tsMs}`
+      : rawRunId;
+
   await pushKeeperhubRun({
     kind: "reputation-cache",
     jobId: `rep-pulse-${tsMs}`,
-    workflowRunId: parsed.data.workflowRunId ?? `rep-pulse-${tsMs}`,
+    workflowRunId,
     txHash: null,
     summary,
     ts: tsMs,

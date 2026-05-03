@@ -15,6 +15,50 @@ const BID_ACCEPTED = (ABI as AbiEvent[]).find(
 ) as AbiEvent;
 
 const SEPOLIA_DEPLOY_BLOCK_DEFAULT = 6_000_000n;
+const LOG_CHUNK_BLOCKS = 49_000n;
+
+type MinedLog = {
+  args: Record<string, unknown>;
+  transactionHash: Hex;
+  blockNumber: bigint;
+};
+
+async function getLogsChunked(
+  client: ReturnType<typeof sepoliaPublicClient>,
+  args: {
+    address: Address;
+    event: AbiEvent;
+    eventArgs?: Record<string, unknown>;
+    fromBlock: bigint;
+    toBlock: bigint;
+  },
+): Promise<MinedLog[]> {
+  const out: MinedLog[] = [];
+  let from = args.fromBlock;
+  while (from <= args.toBlock) {
+    const to =
+      from + LOG_CHUNK_BLOCKS - 1n > args.toBlock
+        ? args.toBlock
+        : from + LOG_CHUNK_BLOCKS - 1n;
+    try {
+      const logs = await client.getLogs({
+        address: args.address,
+        event: args.event,
+        args: args.eventArgs,
+        fromBlock: from,
+        toBlock: to,
+      });
+      out.push(...(logs as unknown as MinedLog[]));
+    } catch (e) {
+      console.error(
+        `[bids] getLogs ${args.event.name} ${from}..${to} failed:`,
+        (e as Error).message,
+      );
+    }
+    from = to + 1n;
+  }
+  return out;
+}
 
 export type StandingBid = {
   bidder: Address;
@@ -104,24 +148,24 @@ export async function readBidHistory(args: {
 
   try {
     const [placedLogs, withdrawnLogs, acceptedLogs] = await Promise.all([
-      client.getLogs({
+      getLogsChunked(client, {
         address: args.bidsAddress,
         event: BID_PLACED,
-        args: { tokenId: args.tokenId },
+        eventArgs: { tokenId: args.tokenId },
         fromBlock,
         toBlock: tip,
       }),
-      client.getLogs({
+      getLogsChunked(client, {
         address: args.bidsAddress,
         event: BID_WITHDRAWN,
-        args: { tokenId: args.tokenId },
+        eventArgs: { tokenId: args.tokenId },
         fromBlock,
         toBlock: tip,
       }),
-      client.getLogs({
+      getLogsChunked(client, {
         address: args.bidsAddress,
         event: BID_ACCEPTED,
-        args: { tokenId: args.tokenId },
+        eventArgs: { tokenId: args.tokenId },
         fromBlock,
         toBlock: tip,
       }),

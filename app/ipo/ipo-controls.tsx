@@ -96,7 +96,9 @@ export default function IpoControls(props: Props) {
   );
 
   const refreshState = useCallback(
-    async (addr: Address) => {
+    async (
+      addr: Address,
+    ): Promise<{ usdc: bigint; shares: bigint; claimable: bigint } | null> => {
       try {
         const [u, s, c] = await Promise.all([
           publicClient.readContract({
@@ -121,11 +123,30 @@ export default function IpoControls(props: Props) {
         setUsdcBalance(u);
         setShareBalance(s);
         setClaimable(c);
+        return { usdc: u, shares: s, claimable: c };
       } catch (err) {
         console.error("[ipo] refreshState:", err);
+        return null;
       }
     },
     [publicClient, props.usdc, props.shares, props.splitter],
+  );
+
+  /// Poll `refreshState` until `predicate` is true, or 15 attempts (~15s)
+  /// elapse. Defends against the RPC returning a transaction receipt before
+  /// the next read sees the updated state.
+  const refreshUntil = useCallback(
+    async (
+      addr: Address,
+      predicate: (s: { usdc: bigint; shares: bigint; claimable: bigint }) => boolean,
+    ) => {
+      for (let i = 0; i < 15; i++) {
+        const next = await refreshState(addr);
+        if (next && predicate(next)) return;
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    },
+    [refreshState],
   );
 
   const handleConnect = useCallback(async () => {
@@ -218,8 +239,32 @@ export default function IpoControls(props: Props) {
           args: [props.sale, MAX_UINT256],
           account,
         });
-        await publicClient.waitForTransactionReceipt({ hash: approveTx });
+        await publicClient.waitForTransactionReceipt({
+          hash: approveTx,
+          confirmations: 1,
+        });
+        // Defend against RPC state lag: poll allowance until it reflects the
+        // approval before we attempt buy(). Some Base Sepolia public RPCs
+        // return a receipt before the next read sees the updated state.
+        setBusy("confirming allowance…");
+        let confirmed = 0n;
+        for (let i = 0; i < 15; i++) {
+          confirmed = (await publicClient.readContract({
+            address: props.usdc,
+            abi: ERC20_ABI,
+            functionName: "allowance",
+            args: [account, props.sale],
+          })) as bigint;
+          if (confirmed >= cost) break;
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+        if (confirmed < cost) {
+          throw new Error(
+            "approval mined but allowance not yet visible on RPC — try again in a few seconds",
+          );
+        }
       }
+      const sharesBefore = shareBalance ?? 0n;
       setBusy("buying shares…");
       const tx = await walletClient.writeContract({
         address: props.sale,
@@ -229,14 +274,18 @@ export default function IpoControls(props: Props) {
         account,
       });
       setLastTx(tx);
-      await publicClient.waitForTransactionReceipt({ hash: tx });
-      await refreshState(account);
+      await publicClient.waitForTransactionReceipt({
+        hash: tx,
+        confirmations: 1,
+      });
+      setBusy("confirming…");
+      await refreshUntil(account, (s) => s.shares >= sharesBefore + wholeShares);
     } catch (err) {
       setError(extractError(err));
     } finally {
       setBusy(null);
     }
-  }, [account, buyAmount, pricePerShare, props.sale, props.usdc, publicClient, refreshState]);
+  }, [account, buyAmount, pricePerShare, props.sale, props.usdc, publicClient, refreshUntil, shareBalance]);
 
   const onClaim = useCallback(async () => {
     if (!account || !window.ethereum) return;
@@ -255,14 +304,18 @@ export default function IpoControls(props: Props) {
         account,
       });
       setLastTx(tx);
-      await publicClient.waitForTransactionReceipt({ hash: tx });
-      await refreshState(account);
+      await publicClient.waitForTransactionReceipt({
+        hash: tx,
+        confirmations: 1,
+      });
+      setBusy("confirming…");
+      await refreshUntil(account, (s) => s.claimable === 0n);
     } catch (err) {
       setError(extractError(err));
     } finally {
       setBusy(null);
     }
-  }, [account, props.splitter, publicClient, refreshState]);
+  }, [account, props.splitter, publicClient, refreshUntil]);
 
   const buyCost = (() => {
     try {

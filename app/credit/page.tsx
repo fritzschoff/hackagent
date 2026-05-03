@@ -64,6 +64,55 @@ export default async function CreditPage() {
         </section>
       ) : (
         <div className="mt-10 space-y-12 reveal reveal-2">
+          <section className="card-flat">
+            <p className="tag mb-3">roles · who calls what</p>
+            <dl className="grid grid-cols-1 sm:grid-cols-[10rem_1fr] gap-y-3 gap-x-4 text-sm">
+              <dt className="display-italic">lender</dt>
+              <dd className="text-(--color-muted) leading-relaxed">
+                Any human-controlled EOA. Calls{" "}
+                <code>deposit(amount)</code> on the pool and receives shares
+                back. Earns yield when the agent repays; absorbs losses pro-rata
+                if the agent defaults. Withdrawals exit at current NAV-per-share.
+              </dd>
+              <dt className="display-italic">borrower</dt>
+              <dd className="text-(--color-muted) leading-relaxed">
+                The agent itself — specifically the wallet registered as{" "}
+                <code>agentAddress</code> in <code>IdentityRegistry</code>. The
+                contract enforces this:{" "}
+                <code className="text-(--color-fg)">
+                  msg.sender == registry.getAgent(agentId).agentAddress
+                </code>
+                . No one else can call <code>borrow</code>, no matter how much
+                liquidity is available.
+              </dd>
+              <dt className="display-italic">repayer</dt>
+              <dd className="text-(--color-muted) leading-relaxed">
+                Anyone. <code>repay(agentId, amount)</code> takes USDC from{" "}
+                <code>msg.sender</code> and reduces the agent&apos;s loan
+                principal — useful for sponsors, treasuries, or the agent itself.
+              </dd>
+              <dt className="display-italic">liquidator</dt>
+              <dd className="text-(--color-muted) leading-relaxed">
+                Anyone. When the agent&apos;s on-chain feedback drops below 80%
+                of its borrow-time count, anyone can call{" "}
+                <code>liquidate(agentId)</code>. The loan is marked defaulted,
+                outstanding USDC is written off pro-rata across share-holders,
+                and the agent&apos;s reputation is publicly slashed.
+              </dd>
+            </dl>
+            <p className="text-xs text-(--color-muted) leading-relaxed mt-5 pt-4 border-t border-(--color-rule) max-w-2xl">
+              <strong className="text-(--color-fg)">
+                How does the agent take a loan?
+              </strong>{" "}
+              In production the agent&apos;s autonomous runtime decides — for
+              example, when its bid pool needs runway to cover an upcoming SLA
+              bond. For the hackathon demo, the &quot;ask agent to borrow&quot;
+              button below sends the transaction signed by the agent&apos;s
+              private key on the server side, so you don&apos;t need to import
+              the agent&apos;s key into MetaMask. The on-chain caller and
+              recipient are still the agent.
+            </p>
+          </section>
           <div className="stat-grid">
             <Cell label="pool TVL" value={formatUsdc(view.totalAssets)} accent />
             <Cell label="outstanding" value={formatUsdc(view.totalLent)} />

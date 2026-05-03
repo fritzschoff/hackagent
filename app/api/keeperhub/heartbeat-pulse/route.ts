@@ -48,10 +48,18 @@ export async function POST(req: NextRequest) {
     await r.set(`ens:dynamic:${AGENT_ID_DEFAULT}:last-seen-at`, iso, "EX", 86400);
   }
 
+  // Coalesce missing/empty/unsubstituted-template ids to a derived value so
+  // the dashboard never shows a literal "{{...}}" or empty runId.
+  const rawRunId = parsed.data.workflowRunId ?? "";
+  const workflowRunId =
+    rawRunId === "" || rawRunId.includes("{{") || rawRunId.includes("}}")
+      ? `pulse-${tsMs}`
+      : rawRunId;
+
   await pushKeeperhubRun({
     kind: "heartbeat",
     jobId: `pulse-${tsMs}`,
-    workflowRunId: parsed.data.workflowRunId ?? `pulse-${tsMs}`,
+    workflowRunId,
     txHash: null,
     summary: "heartbeat pulse — Redis updated, no on-chain write",
     ts: tsMs,

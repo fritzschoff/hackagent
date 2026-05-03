@@ -14,6 +14,7 @@ import {
 import { sepolia } from "viem/chains";
 import ReputationCreditAbi from "@/lib/abis/ReputationCredit.json";
 import NetworkBanner from "@/components/network-banner";
+import { agentBorrow, agentRepay } from "./actions";
 
 const ERC20_ABI = [
   {
@@ -83,6 +84,8 @@ export default function CreditControls(props: Props) {
   const [depositAmount, setDepositAmount] = useState<string>("10");
   const [borrowAmount, setBorrowAmount] = useState<string>("5");
   const [repayAmount, setRepayAmount] = useState<string>("5");
+  const [agentBorrowAmount, setAgentBorrowAmount] = useState<string>("5");
+  const [agentRepayAmount, setAgentRepayAmount] = useState<string>("5");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastTx, setLastTx] = useState<Hex | null>(null);
@@ -327,6 +330,40 @@ export default function CreditControls(props: Props) {
     }
   }, [account, agentId, ensureAllowance, props.creditAddress, publicClient, refresh, repayAmount]);
 
+  const onAgentBorrow = useCallback(async () => {
+    setError(null);
+    setLastTx(null);
+    setBusy("agent borrowing (server-signed)…");
+    try {
+      const res = await agentBorrow(agentBorrowAmount);
+      if (!res.ok) {
+        setError(res.error);
+      } else {
+        setLastTx(res.txHash);
+        if (account) await refresh(account);
+      }
+    } finally {
+      setBusy(null);
+    }
+  }, [account, agentBorrowAmount, refresh]);
+
+  const onAgentRepay = useCallback(async () => {
+    setError(null);
+    setLastTx(null);
+    setBusy("agent repaying (server-signed)…");
+    try {
+      const res = await agentRepay(agentRepayAmount);
+      if (!res.ok) {
+        setError(res.error);
+      } else {
+        setLastTx(res.txHash);
+        if (account) await refresh(account);
+      }
+    } finally {
+      setBusy(null);
+    }
+  }, [account, agentRepayAmount, refresh]);
+
   const onLiquidate = useCallback(async () => {
     if (!account || !window.ethereum) return;
     setError(null);
@@ -389,10 +426,63 @@ export default function CreditControls(props: Props) {
         busy={busy !== null}
       />
 
+      <div className="space-y-2 pb-4 border-b border-(--color-rule)">
+        <p className="tag">instruct the agent (server-signed)</p>
+        <p className="text-xs text-(--color-muted) max-w-2xl leading-relaxed">
+          The credit contract requires <code>msg.sender</code> to equal the
+          agent&apos;s identity-registry wallet. In production the agent&apos;s
+          runtime decides when to draw credit; for the demo, these buttons send
+          the borrow/repay transaction signed by <code>AGENT_PK</code>{" "}
+          server-side — no MetaMask required, but the on-chain caller is still
+          the agent.
+        </p>
+        <div className="flex flex-wrap gap-2 items-center">
+          <input
+            type="text"
+            value={agentBorrowAmount}
+            onChange={(e) => setAgentBorrowAmount(e.target.value)}
+            disabled={busy !== null || props.hasOpenLoan}
+            className="w-20"
+          />
+          <span className="tag">USDC</span>
+          <button
+            onClick={onAgentBorrow}
+            disabled={busy !== null || props.hasOpenLoan}
+            className="btn btn-primary"
+          >
+            ask agent to borrow →
+          </button>
+          {props.hasOpenLoan ? (
+            <span className="text-xs text-(--color-muted)">
+              agent already has an open loan — repay first
+            </span>
+          ) : null}
+        </div>
+        {props.hasOpenLoan ? (
+          <div className="flex flex-wrap gap-2 items-center">
+            <input
+              type="text"
+              value={agentRepayAmount}
+              onChange={(e) => setAgentRepayAmount(e.target.value)}
+              disabled={busy !== null}
+              className="w-20"
+            />
+            <span className="tag">USDC</span>
+            <button
+              onClick={onAgentRepay}
+              disabled={busy !== null}
+              className="btn"
+            >
+              ask agent to repay →
+            </button>
+          </div>
+        ) : null}
+      </div>
+
       {account && chainOk ? (
         <>
           <div className="space-y-2">
-            <p className="tag">lender</p>
+            <p className="tag">lender (you · any EOA)</p>
             <div className="flex flex-wrap gap-2 items-center">
               <input
                 type="text"
@@ -421,7 +511,7 @@ export default function CreditControls(props: Props) {
 
           {isAgent ? (
             <div className="space-y-2 pt-3 border-t border-(--color-rule)">
-              <p className="tag">agent (borrower)</p>
+              <p className="tag">borrower · connected as agent EOA</p>
               {!props.hasOpenLoan ? (
                 <div className="flex flex-wrap gap-2 items-center">
                   <input
