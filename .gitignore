@@ -31,5 +31,6 @@ next-env.d.ts
 .env.local.*
 
 # Internal notes, research, deploy logs — kept locally, not part of the repo.
+# Anchored with leading slash so app/docs/ (the in-app /docs route) is NOT matched.
 # FEEDBACK.md at the root is the only documentation tracked (Uniswap prize req).
-docs/
+/docs/

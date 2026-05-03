@@ -427,49 +427,7 @@ export default function DocsPage() {
             surface area where the agent acts as a real autonomous business —
             not just &quot;an LLM with a wallet.&quot;
           </p>
-          <pre className="overflow-x-auto bg-(--color-bg-soft) p-4 rounded text-[11px] font-mono leading-snug">
-{`         ┌──────────────────────────────────────────┐
-         │           agentlab.eth dashboard         │
-         │           (Next.js 16 on Vercel)         │
-         └──────────────────────────────────────────┘
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        ▼                     ▼                     ▼
- ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
- │   SEPOLIA    │     │ BASE SEPOLIA │     │ 0G  GALILEO  │
- │  (identity)  │     │ (settlement) │     │  (storage +  │
- │              │     │              │     │   compute)   │
- │ • V2-b       │     │ • TRADE ERC20│     │ • Memory     │
- │ • Verifier   │     │ • SharesSale │     │   ciphertext │
- │ • INFT       │     │ • Splitter   │     │ • TEE LLM    │
- │ • Bids       │     │ • x402 USDC  │     │   inference  │
- │ • Merger     │     │              │     │              │
- │ • Reputation │     │              │     │              │
- │ • Credit     │     │              │     │              │
- │ • SLA        │     │              │     │              │
- │ • Compliance │     │              │     │              │
- └──────────────┘     └──────────────┘     └──────────────┘
-        ▲                     ▲                     ▲
-        │ contract calls      │ x402 settlement     │ anchor + indexer
-        │                     │                     │
- ┌──────┴─────────────────────┴─────────────────────┴──────┐
- │              Vercel Functions  (Fluid Compute)          │
- │  ────────────────────────────────────────────────────   │
- │  /api/inft/oracle/*    INFT oracle — memory encryption  │
- │  /api/inft/transfer/*  user-facing rate-limited proxy   │
- │  /api/a2a/jobs         x402 paid quote endpoint         │
- │  /api/keeperhub/*      KeeperHub workflow webhooks      │
- └─────────────────────────────────────────────────────────┘
-                              │
-                ┌─────────────┴─────────────┐
-                ▼                           ▼
-         ┌──────────────┐            ┌──────────────┐
-         │   Upstash    │            │  KeeperHub   │
-         │    Redis     │            │  (Turnkey +  │
-         │   (oracle    │            │   workflows) │
-         │   AES keys)  │            │              │
-         └──────────────┘            └──────────────┘`}
-          </pre>
+          <ArchOverviewDiagram />
           <p className="text-(--color-muted)">
             Two chains: <Code>11155111</Code> (Sepolia, identity-side){" "}
             and <Code>84532</Code> (Base Sepolia, settlement). Plus 0G Galileo{" "}
@@ -837,35 +795,7 @@ export default function DocsPage() {
       <section id="arch-w2-flow" className="mt-12 reveal reveal-3">
         <Header marker="∇10" title="resolve flow — what happens when you query an ens text record" />
         <div className="card-flat space-y-3 text-sm leading-relaxed">
-          <pre className="overflow-x-auto bg-(--color-bg-soft) p-4 rounded text-[11px] font-mono leading-snug">
-{`wallet / dApp                viem.getEnsText({ name, key })
-       │
-       │  1. eth_call resolve(name, data) on agentlab.eth's resolver
-       ▼
-OffchainResolver (Sepolia)   reverts: OffchainLookup(this, [gatewayURL],
-       │                              callData, callbackFn, extraData)
-       │
-       │  2. viem auto-handles the revert (EIP-3668)
-       │     GET https://hackagent-nine.vercel.app/api/ens-gateway/{sender}/{data}.json
-       ▼
-gateway HTTP route           - ABI-decode (name, data)
-                             - parse selector: text / addr / ...
-                             - compute value: Redis + chain + Edge Config
-                             - sign: keccak256(0x1900 || resolver || expires
-                                              || keccak(extraData) || keccak(result))
-                             - returns: { data: encode(expires, result, sig) }
-       │
-       │  3. viem calls back: resolveWithProof(response, extraData)
-       ▼
-OffchainResolver.resolveWithProof
-                             - check expires > now
-                             - ecrecover sig === expectedGatewaySigner
-                             - return result bytes
-       │
-       │  4. viem decodes: { string } or { bytes }
-       ▼
-caller receives the value`}
-          </pre>
+          <ResolveFlowDiagram />
         </div>
       </section>
 
@@ -1133,6 +1063,211 @@ function Dt({ children }: { children: React.ReactNode }) {
 function Dd({ children }: { children: React.ReactNode }) {
   return (
     <dd className="text-sm text-(--color-muted) leading-relaxed">{children}</dd>
+  );
+}
+
+/// CSS-grid system overview diagram. Replaces a font-fragile ASCII version
+/// that relied on `•` and box-drawing chars rendering at exactly the same
+/// width across font fallbacks.
+function ArchOverviewDiagram() {
+  return (
+    <div className="my-2 space-y-2 font-mono text-[11px]">
+      <DiagBox center>
+        <div className="display text-sm not-italic">agentlab.eth dashboard</div>
+        <div className="text-(--color-muted)">Next.js 16 on Vercel</div>
+      </DiagBox>
+
+      <DiagConnector />
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <DiagBox label="SEPOLIA · identity">
+          <DiagBullets
+            items={[
+              "V2-b registry",
+              "Verifier",
+              "INFT (ERC-7857)",
+              "Bids",
+              "Merger",
+              "Reputation",
+              "Credit",
+              "SLA bond",
+              "Compliance",
+            ]}
+          />
+        </DiagBox>
+        <DiagBox label="BASE SEPOLIA · settlement">
+          <DiagBullets
+            items={[
+              "TRADE ERC-20",
+              "SharesSale",
+              "RevenueSplitter",
+              "x402 USDC",
+            ]}
+          />
+        </DiagBox>
+        <DiagBox label="0G GALILEO · storage + compute">
+          <DiagBullets
+            items={[
+              "Memory ciphertext",
+              "TEE LLM inference",
+            ]}
+          />
+        </DiagBox>
+      </div>
+
+      <DiagConnector />
+
+      <DiagBox label="Vercel Functions · Fluid Compute">
+        <ul className="space-y-1 text-(--color-muted)">
+          <li>
+            <span className="text-(--color-fg)">/api/inft/oracle/*</span> ·
+            INFT oracle — memory encryption
+          </li>
+          <li>
+            <span className="text-(--color-fg)">/api/inft/transfer/*</span> ·
+            user-facing rate-limited proxy
+          </li>
+          <li>
+            <span className="text-(--color-fg)">/api/a2a/jobs</span> · x402
+            paid quote endpoint
+          </li>
+          <li>
+            <span className="text-(--color-fg)">/api/keeperhub/*</span> ·
+            KeeperHub workflow webhooks
+          </li>
+        </ul>
+      </DiagBox>
+
+      <DiagConnector />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <DiagBox label="Upstash Redis">
+          <div className="text-(--color-muted)">oracle AES keys, ENS dynamic records, debounce locks</div>
+        </DiagBox>
+        <DiagBox label="KeeperHub">
+          <div className="text-(--color-muted)">Turnkey-managed wallet + workflow runtime</div>
+        </DiagBox>
+      </div>
+    </div>
+  );
+}
+
+/// Vertical numbered sequence diagram for the W2 CCIP-Read resolve flow.
+function ResolveFlowDiagram() {
+  return (
+    <ol className="space-y-1 font-mono text-[11px]">
+      <FlowStep
+        n="1"
+        actor="wallet / dApp"
+        action="viem.getEnsText({ name, key }) → eth_call resolve(name, data) on the agentlab.eth resolver"
+      />
+      <FlowArrow />
+      <FlowStep
+        n="2"
+        actor="OffchainResolver (Sepolia)"
+        action="reverts: OffchainLookup(this, [gatewayURL], callData, callbackFn, extraData) — viem catches it (EIP-3668)"
+      />
+      <FlowArrow />
+      <FlowStep
+        n="3"
+        actor="gateway HTTP route"
+        action={
+          <>
+            GET <Code>/api/ens-gateway/{`{sender}/{data}.json`}</Code> → ABI-decode (name, data) → resolve via Redis + chain + Edge Config → sign{" "}
+            <Code>keccak256(0x1900 || resolver || expires || keccak(extraData) || keccak(result))</Code>{" "}
+            → returns <Code>{`{ data: encode(expires, result, sig) }`}</Code>
+          </>
+        }
+      />
+      <FlowArrow />
+      <FlowStep
+        n="4"
+        actor="OffchainResolver.resolveWithProof"
+        action="check expires > now · ecrecover sig === expectedGatewaySigner · return result bytes"
+      />
+      <FlowArrow />
+      <FlowStep
+        n="5"
+        actor="caller"
+        action="viem decodes the result and hands the value to your code"
+      />
+    </ol>
+  );
+}
+
+function DiagBox({
+  label,
+  center,
+  children,
+}: {
+  label?: string;
+  center?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={`border border-(--color-border) bg-(--color-bg-soft) p-3 rounded ${
+        center ? "text-center mx-auto max-w-md" : ""
+      }`}
+    >
+      {label ? (
+        <div className="tag mb-1.5 text-[0.65rem]">{label}</div>
+      ) : null}
+      {children}
+    </div>
+  );
+}
+
+function DiagBullets({ items }: { items: string[] }) {
+  return (
+    <ul className="space-y-0.5 text-(--color-muted)">
+      {items.map((it) => (
+        <li key={it}>· {it}</li>
+      ))}
+    </ul>
+  );
+}
+
+function DiagConnector() {
+  return (
+    <div className="flex justify-center text-(--color-muted)" aria-hidden>
+      <span className="text-base leading-none">↓</span>
+    </div>
+  );
+}
+
+function FlowStep({
+  n,
+  actor,
+  action,
+}: {
+  n: string;
+  actor: string;
+  action: React.ReactNode;
+}) {
+  return (
+    <li className="border border-(--color-border) bg-(--color-bg-soft) p-3 rounded space-y-1.5">
+      <div className="flex items-baseline gap-2">
+        <span className="display-italic text-(--color-amber) text-base shrink-0">
+          {n}.
+        </span>
+        <span className="text-(--color-fg)">{actor}</span>
+      </div>
+      <div className="text-(--color-muted) leading-relaxed pl-6">
+        {action}
+      </div>
+    </li>
+  );
+}
+
+function FlowArrow() {
+  return (
+    <li
+      className="text-center text-(--color-muted) leading-none py-0.5"
+      aria-hidden
+    >
+      ↓
+    </li>
   );
 }
 
