@@ -43,6 +43,19 @@
   },
   {
     "type": "function",
+    "name": "accPerShareStored",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "claim",
     "inputs": [],
     "outputs": [
@@ -75,7 +88,20 @@
   },
   {
     "type": "function",
-    "name": "released",
+    "name": "lastBalance",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pending",
     "inputs": [
       {
         "name": "",
@@ -94,6 +120,24 @@
   },
   {
     "type": "function",
+    "name": "syncOnTransfer",
+    "inputs": [
+      {
+        "name": "from",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "to",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "totalReceived",
     "inputs": [],
     "outputs": [
@@ -109,6 +153,25 @@
     "type": "function",
     "name": "totalReleased",
     "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "userAccPerShare",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
     "outputs": [
       {
         "name": "",

@@ -40,6 +40,7 @@ contract DeployAgentIPO is Script {
             address(shares),
             BASE_SEPOLIA_USDC
         );
+        shares.setSplitter(address(splitter));
         SharesSale sale = new SharesSale(
             address(shares),
             BASE_SEPOLIA_USDC,

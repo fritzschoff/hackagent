@@ -53,6 +53,7 @@ contract RevenueSplitterTest is Test {
         shares = new AgentShares(founder, address(0xDEAD), 1);
         usdc = new MockUSDC();
         splitter = new RevenueSplitter(address(shares), address(usdc));
+        shares.setSplitter(address(splitter));
     }
 
     function test_claim_proRata_singleHolder() public {
@@ -110,6 +111,91 @@ contract RevenueSplitterTest is Test {
         vm.prank(founder);
         splitter.claim();
         assertEq(splitter.totalReceived(), 30_000_000);
+    }
+
+    /// Founder claims their share, then transfers all shares to bob.
+    /// Bob must NOT be able to claim again against the same USDC the founder
+    /// already withdrew. Under the broken PaymentSplitter math (released[user]
+    /// + balanceOf-based entitled), bob's released starts at 0 so the splitter
+    /// pays him a second time → pool insolvency.
+    function test_transferAfterClaim_doesNotDoublePay() public {
+        usdc.mint(address(splitter), 100_000_000);
+
+        vm.prank(founder);
+        uint256 founderClaim = splitter.claim();
+        assertEq(founderClaim, 100_000_000);
+        assertEq(usdc.balanceOf(address(splitter)), 0);
+
+        // Founder sells all shares to bob (e.g., secondary market).
+        uint256 supply = shares.totalSupply();
+        vm.prank(founder);
+        shares.transfer(bob, supply);
+
+        // No new USDC has arrived. Bob's claim must revert — pool is empty.
+        vm.expectRevert(bytes("nothing to claim"));
+        vm.prank(bob);
+        splitter.claim();
+    }
+
+    /// Founder claims, transfers shares, then NEW USDC arrives.
+    /// Only the new USDC belongs to bob — the founder's earlier 50 must not
+    /// re-accrue to bob.
+    function test_transferAfterClaim_newRevenueAccruesToNewHolder() public {
+        usdc.mint(address(splitter), 50_000_000);
+        vm.prank(founder);
+        splitter.claim(); // founder takes 50
+
+        uint256 supply = shares.totalSupply();
+        vm.prank(founder);
+        shares.transfer(bob, supply);
+
+        usdc.mint(address(splitter), 30_000_000); // new revenue
+
+        vm.prank(bob);
+        uint256 bobClaim = splitter.claim();
+        assertEq(bobClaim, 30_000_000, "bob should only claim new revenue");
+
+        // Founder should have nothing left to claim.
+        vm.expectRevert(bytes("nothing to claim"));
+        vm.prank(founder);
+        splitter.claim();
+    }
+
+    /// Split holders, partial claim, then a transfer between them mid-stream.
+    /// Each party must still receive exactly their fair share of every USDC
+    /// inflow, attributed to whoever held shares at the moment of inflow.
+    function test_midstreamTransfer_accruesProportionally() public {
+        // founder 100% → alice gets 5000 (50%)
+        vm.prank(founder);
+        shares.transfer(alice, 5_000 * 1e18);
+
+        usdc.mint(address(splitter), 100_000_000); // 100 USDC arrives at 50/50
+
+        vm.prank(founder);
+        assertEq(splitter.claim(), 50_000_000);
+        // alice does not claim yet.
+
+        // alice sells all to bob before claiming. Her 50 must travel with her,
+        // not be left for bob.
+        vm.prank(alice);
+        shares.transfer(bob, 5_000 * 1e18);
+
+        usdc.mint(address(splitter), 100_000_000); // 100 more, now founder/bob 50/50
+
+        // alice still owed her original 50 from the first inflow.
+        vm.prank(alice);
+        assertEq(splitter.claim(), 50_000_000);
+
+        // founder owed 50 from the second inflow (already took the first).
+        vm.prank(founder);
+        assertEq(splitter.claim(), 50_000_000);
+
+        // bob owed 50 from the second inflow only.
+        vm.prank(bob);
+        assertEq(splitter.claim(), 50_000_000);
+
+        // pool fully drained, nothing extra.
+        assertEq(usdc.balanceOf(address(splitter)), 0);
     }
 }
 
