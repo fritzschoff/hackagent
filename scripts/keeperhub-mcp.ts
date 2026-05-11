@@ -102,6 +102,20 @@ async function main() {
     return;
   }
 
+  if (cmd === "list") {
+    const r = await tool("list_workflows", {});
+    console.log(JSON.stringify(r, null, 2));
+    return;
+  }
+
+  if (cmd === "delete") {
+    const id = process.argv[3];
+    if (!id) throw new Error("usage: delete <id>");
+    const r = await tool("delete_workflow", { workflowId: id });
+    console.log(JSON.stringify(r, null, 2));
+    return;
+  }
+
   console.error(`unknown cmd: ${cmd}`);
   process.exit(1);
 }

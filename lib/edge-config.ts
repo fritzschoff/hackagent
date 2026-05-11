@@ -27,6 +27,8 @@ export type BaseSepoliaAddressMap = {
   sharesSale?: `0x${string}`;
   pricePerShareUsdc?: number;
   usdc?: `0x${string}`;
+  tradingTreasury?: `0x${string}`;
+  mockPerpExchange?: `0x${string}`;
 };
 
 const STUB: AddressMap = {
