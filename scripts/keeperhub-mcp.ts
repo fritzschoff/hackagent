@@ -68,7 +68,12 @@ async function tool<T = unknown>(
   if (r.error) throw new Error(`${name}: ${r.error.message}`);
   const text = r.result?.content?.[0]?.text;
   if (!text) throw new Error(`${name}: empty content`);
-  return JSON.parse(text) as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    // Some tools (delete_workflow) return a plain string ack rather than JSON.
+    return text as unknown as T;
+  }
 }
 
 async function main() {
@@ -113,6 +118,21 @@ async function main() {
     if (!id) throw new Error("usage: delete <id>");
     const r = await tool("delete_workflow", { workflowId: id });
     console.log(JSON.stringify(r, null, 2));
+    return;
+  }
+
+  if (cmd === "docs") {
+    const r = await tool("tools_documentation", {});
+    console.log(typeof r === "string" ? r : JSON.stringify(r, null, 2));
+    return;
+  }
+
+  if (cmd === "call") {
+    const name = process.argv[3];
+    if (!name) throw new Error("usage: call <tool> <jsonArgs>");
+    const args = process.argv[4] ? JSON.parse(process.argv[4]) : {};
+    const r = await tool(name, args);
+    console.log(typeof r === "string" ? r : JSON.stringify(r, null, 2));
     return;
   }
 
