@@ -357,7 +357,7 @@ Compliance / misc
 - 2026-05-12: HL_FACTS.md captures concrete numbers (fees, funding, bridge, signing). Bridge2 on Arbitrum at `0x2df1c51e09aecf9cacb7bc98cb1742757f163df7` (mainnet), `0x08cfc1B6b2dCF36A1480b99353A354AA8AC56f89` (testnet).
 - 2026-05-12: V1 HL TS client + V2.5 HyperliquidTreasury shipped, 176/176 tests pass.
 - 2026-05-12: V2.6 off-chain HL strategy adapter shipped; cron triggers migrated to KH.
-- 2026-05-12: **M1 kill-switch live test in progress.** Disabled `TreasuryHeartbeatTrigger` at 15:37 UTC. Last heartbeat 14:34 UTC → stale at 20:34 UTC → trip expected at 21:00 UTC (KH hourly check, minute 0). See §7 for what we learned setting it up.
+- 2026-05-12: **M1 kill-switch live test PASSED.** Disabled `TreasuryHeartbeatTrigger` at 15:37 UTC. KH `TreasuryKillSwitch` fired at 21:00 UTC, reading `heartbeatStale()=true` and calling `emergencyExit("keeperhub dead-mans-switch")` via the Turnkey wallet. Final state at 21:05 UTC: `killed=true`, position closed, treasury drained, splitter received 0.6 USDC (0.1 reserve + 0.5 collateral). Founder can now `claim()` 1.0 USDC total on the splitter. After completion, also disabled `TreasuryKillSwitch` itself since the contract is now permanently killed and the workflow has nothing to do — re-enable only on a fresh treasury deploy. **M1 → M2 gate cleared.**
 
 ## 7. Lessons learned (durable — add here when running an experiment surfaces a gotcha)
 
