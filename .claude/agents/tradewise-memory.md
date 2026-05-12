@@ -357,6 +357,37 @@ Compliance / misc
 - 2026-05-12: HL_FACTS.md captures concrete numbers (fees, funding, bridge, signing). Bridge2 on Arbitrum at `0x2df1c51e09aecf9cacb7bc98cb1742757f163df7` (mainnet), `0x08cfc1B6b2dCF36A1480b99353A354AA8AC56f89` (testnet).
 - 2026-05-12: V1 HL TS client + V2.5 HyperliquidTreasury shipped, 176/176 tests pass.
 - 2026-05-12: V2.6 off-chain HL strategy adapter shipped; cron triggers migrated to KH.
+- 2026-05-12: **M1 kill-switch live test in progress.** Disabled `TreasuryHeartbeatTrigger` at 15:37 UTC. Last heartbeat 14:34 UTC → stale at 20:34 UTC → trip expected at 21:00 UTC (KH hourly check, minute 0). See §7 for what we learned setting it up.
+
+## 7. Lessons learned (durable — add here when running an experiment surfaces a gotcha)
+
+### 7.1 emergencyExit solvency depends on the exchange's USDC reserves (TradingTreasury bug-class)
+
+While preparing the M1 kill-switch live test we realised the kill-switch trip would have reverted if we hadn't pre-emptively touched the exchange. Why:
+
+`TradingTreasury.emergencyExit` does two contract calls without try/catch:
+1. `exchange.closePosition(positionId)` — credits the trader's `collateralOf` with realized PnL.
+2. `exchange.withdraw(onExchange)` — pulls the credited balance into the treasury via `USDC.safeTransfer(msg.sender, amount)`.
+
+If accrued funding on the open short is large enough that the credited balance exceeds the exchange's actual USDC balance (e.g. MockPerpExchange's house pool is too small to pay the funding owed), step 2 reverts. Whole `emergencyExit` reverts. **Contract is not killed, treasury is not drained, splitter never receives, kill-switch demo fails silently** (KH workflow's webhook-notify never fires because the write node reverts).
+
+**Concrete numbers from the test setup:** Position opened ~09:45 UTC with rate `setFundingRatePerSecond(278)` (=$1/hr per unit). By ~20:00 UTC, ~10h elapsed → ~$10 owed to the short. MockPerpExchange had only $0.8 USDC total (0.3 house + 0.5 collateral). Trip would have reverted with `ERC20InsufficientBalance`.
+
+**Fix used in this test:** Set funding rate to 0 via `cast send ... setFundingRatePerSecond(0)` from AGENT_PK (the exchange's owner). The mock's funding-leg calc uses the *current* rate × duration (not historical), so zeroing wipes accrued funding to 0. Pnl=0 at close, collateralOf unchanged, withdraw(0.5) succeeds.
+
+**Contract-level fix for the future** (TODO): wrap the `exchange.closePosition` + `exchange.withdraw` calls in `TradingTreasury.emergencyExit` in try/catch so the kill (set killed=true + drain treasury USDC + emit events) always succeeds even if the exchange is broken / under-funded / reverting. The HyperliquidTreasury already has this pattern around `L1Read.position` but not around `HyperliquidActions.send` — same gotcha applies there if HL is paused or out of liquidity.
+
+**General principle for kill-switches**: any external call inside an emergency path must be try/catch'd. The kill must always succeed at the contract level even if downstream venues are broken — that's the entire promise of a dead-man's switch.
+
+### 7.2 Heartbeat-timeout for live testing
+
+`heartbeatTimeout` defaults to 6h. Great for production (operator on-call can recover before trip). Terrible for live demos / audits / iteration loops where you want to see the trip in 30 minutes, not 6 hours. The contract already exposes `setHeartbeatTimeout(uint64 secs)` with bounds 1h..7d. For demo deploys, set it to 1h before opening to outside observers. Operator just needs to remember to set it back to 6h before going live with shareholder capital.
+
+### 7.3 KH workflow disable pattern
+
+`update_workflow` accepts `{workflowId, enabled: false}` (and `true` to re-enable). This is the **non-destructive** way to pause a workflow without losing config / execution history. **Do not use `delete_workflow`** for testing — workflows with execution history can't be deleted via MCP (409 Conflict) and even if they could, you'd lose the config. Disable is reversible; delete isn't.
+
+Workflow IDs are stable across update_workflow calls. After a disable+re-enable cycle, the `KEEPERHUB_WORKFLOW_ID_*` env var doesn't need to change.
 
 ## 6. Open M3 questions (for the operator, not technical blockers)
 
