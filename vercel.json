@@ -11,7 +11,8 @@
     { "path": "/api/cron/reputation-cache",   "schedule": "0 6 * * *" },
     { "path": "/api/cron/ens-heartbeat",      "schedule": "0 6 * * *" },
     { "path": "/api/cron/compliance-attest",  "schedule": "0 */6 * * *" },
-    { "path": "/api/cron/treasury-heartbeat", "schedule": "30 * * * *" }
+    { "path": "/api/cron/treasury-heartbeat", "schedule": "30 * * * *" },
+    { "path": "/api/cron/treasury-strategy",  "schedule": "*/15 * * * *" }
   ],
   "functions": {
     "app/api/a2a/jobs/route.ts":               { "maxDuration": 300 },
@@ -22,7 +23,8 @@
     "app/api/cron/reputation-cache/route.ts":  { "maxDuration": 60 },
     "app/api/cron/ens-heartbeat/route.ts":     { "maxDuration": 30 },
     "app/api/cron/compliance-attest/route.ts": { "maxDuration": 60 },
-    "app/api/cron/treasury-heartbeat/route.ts":{ "maxDuration": 30 }
+    "app/api/cron/treasury-heartbeat/route.ts":{ "maxDuration": 30 },
+    "app/api/cron/treasury-strategy/route.ts": { "maxDuration": 30 }
   },
   "rewrites": [
     {
