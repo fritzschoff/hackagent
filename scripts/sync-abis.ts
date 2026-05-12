@@ -18,6 +18,7 @@ const CONTRACTS = [
   "ComplianceManifest",
   "TradingTreasury",
   "MockPerpExchange",
+  "HyperliquidTreasury",
 ] as const;
 
 function syncAbi(name: string): void {
