@@ -11,6 +11,7 @@ import { readRecentFeedback, readRecentValidations } from "@/lib/erc8004";
 import { getSepoliaAddresses } from "@/lib/edge-config";
 import { AGENT_ENS, resolveAgentEns } from "@/lib/ens";
 import { readTreasury } from "@/lib/treasury";
+import { getRecentTradeLog } from "@/lib/treasury-log";
 import SiteNav from "@/components/site-nav";
 import PaginatedList from "@/components/paginated-list";
 
@@ -50,6 +51,7 @@ export default async function DashboardPage() {
     pricewatchEarningsCents,
     treasury,
     funding,
+    tradeLog,
   ] = await Promise.all([
     getRecentJobs(200),
     getEarningsCents(),
@@ -63,6 +65,7 @@ export default async function DashboardPage() {
     getPricewatchEarningsCents(),
     readTreasury(),
     getLatestFundingSnapshot(),
+    getRecentTradeLog(20),
   ]);
 
   const distinctClients = new Set(feedback.map((f) => f.client.toLowerCase()))
@@ -524,8 +527,69 @@ export default async function DashboardPage() {
         )}
       </Section>
 
+      {/* TRADE LOG (0G storage) */}
+      {tradeLog.length > 0 ? (
+        <Section
+          number="08"
+          title="trade log"
+          sub="0G storage · tamper-evident audit trail"
+        >
+          <div className="card-flat p-0">
+            <PaginatedList
+              emptyMessage="no trade-log entries yet"
+              rows={tradeLog.map((e) => ({
+                key: `${e.ts}-${e.txHash}`,
+                node: (
+                  <div className="grid grid-cols-1 md:grid-cols-[auto_1fr_auto] gap-x-3 gap-y-1 items-baseline font-mono text-xs">
+                    <span className="tag">{e.action}</span>
+                    <div className="grid grid-cols-[5rem_1fr] gap-x-2 gap-y-0.5 break-all">
+                      <span className="text-(--color-muted)">reason</span>
+                      <span>{e.reason}</span>
+                      {e.side ? (
+                        <>
+                          <span className="text-(--color-muted)">side</span>
+                          <span>{e.side}</span>
+                        </>
+                      ) : null}
+                      {e.amount ? (
+                        <>
+                          <span className="text-(--color-muted)">amount</span>
+                          <span>{(Number(e.amount) / 1_000_000).toFixed(4)} USDC</span>
+                        </>
+                      ) : null}
+                      {e.fundingRatePerSecond ? (
+                        <>
+                          <span className="text-(--color-muted)">rate</span>
+                          <span>{e.fundingRatePerSecond}/sec</span>
+                        </>
+                      ) : null}
+                      {e.zgRoot ? (
+                        <>
+                          <span className="text-(--color-muted)">0G root</span>
+                          <span className="text-(--color-muted)">
+                            {e.zgRoot.slice(0, 14)}…{e.zgAnchored ? " ✓" : " (pending)"}
+                          </span>
+                        </>
+                      ) : null}
+                    </div>
+                    <a
+                      href={`${BASE_SEPOLIA_BASESCAN}/tx/${e.txHash}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="link break-all md:text-right"
+                    >
+                      {e.txHash.slice(0, 14)}… →
+                    </a>
+                  </div>
+                ),
+              }))}
+            />
+          </div>
+        </Section>
+      ) : null}
+
       {/* RECENT JOBS */}
-      <Section number="08" title="recent jobs">
+      <Section number="09" title="recent jobs">
         <div className="card-flat p-0">
           <PaginatedList
             emptyMessage="no paid jobs yet — once cron is live, simulated clients post every 2-5 minutes"

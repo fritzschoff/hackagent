@@ -106,7 +106,8 @@ export type KeeperhubRunKind =
   | "reputation-cache"
   | "compliance-attest"
   | "kill-switch"
-  | "funding-poll";
+  | "funding-poll"
+  | "dividend-distribute";
 
 export type KeeperhubRun = {
   kind: KeeperhubRunKind;

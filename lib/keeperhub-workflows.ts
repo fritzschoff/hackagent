@@ -692,3 +692,81 @@ export function buildTreasuryFundingPoll(args: {
     edges,
   };
 }
+
+// ─── TreasuryDividendDistribute ───────────────────────────────────────────────
+
+/**
+ * Weekly schedule (Sundays at 00:00 UTC) that triggers a dividend cycle.
+ *
+ * Calls /api/keeperhub/distribute-dividend with bearer auth. The endpoint
+ * reads the treasury's free USDC balance, subtracts the operating reserve,
+ * and calls distributeRevenue() from AGENT_PK so the splitter receives the
+ * weekly cut for shareholders to claim. The endpoint is the right home
+ * for the policy (reserve, min-amount) rather than the workflow node so
+ * we can iterate on it without re-pushing the workflow.
+ *
+ * No on-chain write here; the actual settle happens off-chain in our
+ * route, which is the only side that has the agent EOA's private key.
+ */
+export function buildTreasuryDividendDistribute(args: {
+  appUrl: string;
+  webhookSecret: string;
+}): WorkflowSpec {
+  const nodes = [
+    {
+      id: "trigger-schedule",
+      type: "trigger",
+      position: { x: 0, y: 0 },
+      data: {
+        type: "trigger",
+        label: "Weekly Schedule",
+        status: "idle",
+        config: {
+          triggerType: "Schedule",
+          scheduleCron: "0 0 * * 0",
+          scheduleTimezone: "UTC",
+        },
+      },
+    },
+    {
+      id: "webhook-distribute",
+      type: "action",
+      position: { x: 320, y: 0 },
+      data: {
+        type: "action",
+        label: "POST distribute-dividend",
+        status: "idle",
+        config: {
+          actionType: "webhook/send-webhook",
+          webhookUrl: `${args.appUrl}/api/keeperhub/distribute-dividend`,
+          webhookMethod: "POST",
+          webhookHeaders: JSON.stringify({
+            Authorization: `Bearer ${args.webhookSecret}`,
+            "Content-Type": "application/json",
+          }),
+          webhookPayload: JSON.stringify({
+            triggeredAt:
+              "{{@trigger-schedule:Weekly Schedule.data.triggeredAt}}",
+          }),
+        },
+      },
+    },
+  ];
+
+  const edges = [
+    {
+      id: "e1",
+      type: "animated",
+      source: "trigger-schedule",
+      target: "webhook-distribute",
+    },
+  ];
+
+  return {
+    name: "TreasuryDividendDistribute",
+    description:
+      "Schedule-triggered (weekly, Sundays 00:00 UTC). POSTs to /api/keeperhub/distribute-dividend with bearer auth. The endpoint reads the treasury's free USDC balance and forwards the excess over the operating reserve to the RevenueSplitter via TradingTreasury.distributeRevenue(), so shareholders see a weekly tick of claimable revenue without anyone having to babysit the contract.",
+    nodes,
+    edges,
+  };
+}

@@ -11,6 +11,11 @@ import {
   closePosition,
 } from "@/lib/treasury";
 import { decide, type Action } from "@/lib/treasury-strategy";
+import {
+  appendTradeLog,
+  buildOpenEntry,
+  buildCloseEntry,
+} from "@/lib/treasury-log";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -39,8 +44,9 @@ export async function GET(req: NextRequest) {
 
   const action = decide({ treasury, funding });
   const ts = Date.now();
-  let txHash: string | null = null;
+  let txHash: `0x${string}` | null = null;
   let error: string | null = null;
+  let zgRoot: string | null = null;
 
   try {
     if (action.kind === "open") {
@@ -53,12 +59,52 @@ export async function GET(req: NextRequest) {
     console.error(`[treasury-strategy] ${action.kind} failed:`, error);
   }
 
+  // 0G trade-log entry on successful state-changing actions. Wrapped in a
+  // try/catch so a 0G outage never breaks the strategy loop.
+  if (txHash && !error) {
+    try {
+      const preState = {
+        usdcBalance: treasury.usdcBalance.toString(),
+        positionSize: treasury.positionSize.toString(),
+        positionCollateral: treasury.positionCollateral.toString(),
+      };
+      let entry;
+      if (action.kind === "open") {
+        entry = buildOpenEntry({
+          txHash,
+          reason: action.reason,
+          side: action.side,
+          size: action.size,
+          collateral: action.collateral,
+          fundingRatePerSecond: funding?.ratePerSecond,
+          preState,
+        });
+      } else if (action.kind === "close") {
+        entry = buildCloseEntry({
+          txHash,
+          reason: action.reason,
+          fundingRatePerSecond: funding?.ratePerSecond,
+          preState,
+        });
+      }
+      if (entry) {
+        const persisted = await appendTradeLog(entry);
+        zgRoot = persisted.zgRoot;
+      }
+    } catch (err) {
+      console.error(
+        "[treasury-strategy] trade-log append failed:",
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
   await pushKeeperhubRun({
     kind: "funding-poll",
     jobId: `strategy-${ts}`,
     workflowRunId: `strategy-${ts}`,
-    txHash: txHash as `0x${string}` | null,
-    summary: `${action.kind} · ${action.reason}${error ? ` · ERR ${error.slice(0, 80)}` : ""}`,
+    txHash,
+    summary: `${action.kind} · ${action.reason}${error ? ` · ERR ${error.slice(0, 80)}` : ""}${zgRoot ? ` · 0G ${zgRoot.slice(0, 10)}…` : ""}`,
     ts,
   });
 

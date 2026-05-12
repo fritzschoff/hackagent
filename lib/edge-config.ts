@@ -81,7 +81,8 @@ export type KeeperHubKind =
   | "avatar-sync"
   | "gateway-invalidate"
   | "kill-switch"
-  | "funding-poll";
+  | "funding-poll"
+  | "dividend-distribute";
 
 const ENV_BY_KIND: Record<KeeperHubKind, string> = {
   swap: "KEEPERHUB_WORKFLOW_ID_SWAP",
@@ -93,6 +94,7 @@ const ENV_BY_KIND: Record<KeeperHubKind, string> = {
   "gateway-invalidate": "KEEPERHUB_WORKFLOW_ID_GATEWAY_INVALIDATE",
   "kill-switch": "KEEPERHUB_WORKFLOW_ID_KILL_SWITCH",
   "funding-poll": "KEEPERHUB_WORKFLOW_ID_FUNDING_POLL",
+  "dividend-distribute": "KEEPERHUB_WORKFLOW_ID_DIVIDEND_DISTRIBUTE",
 };
 
 const EDGE_KEY_BY_KIND: Record<KeeperHubKind, string> = {
@@ -105,6 +107,7 @@ const EDGE_KEY_BY_KIND: Record<KeeperHubKind, string> = {
   "gateway-invalidate": "keeperhub_workflow_gateway_invalidate",
   "kill-switch": "keeperhub_workflow_kill_switch",
   "funding-poll": "keeperhub_workflow_funding_poll",
+  "dividend-distribute": "keeperhub_workflow_dividend_distribute",
 };
 
 export async function getKeeperHubWorkflowIdByKind(
