@@ -9,6 +9,7 @@ import { getCronStatuses } from "@/lib/cron-auth";
 import { readRecentFeedback, readRecentValidations } from "@/lib/erc8004";
 import { getSepoliaAddresses } from "@/lib/edge-config";
 import { AGENT_ENS, resolveAgentEns } from "@/lib/ens";
+import { readTreasury } from "@/lib/treasury";
 import SiteNav from "@/components/site-nav";
 import PaginatedList from "@/components/paginated-list";
 
@@ -46,6 +47,7 @@ export default async function DashboardPage() {
     ens,
     pricewatchCalls,
     pricewatchEarningsCents,
+    treasury,
   ] = await Promise.all([
     getRecentJobs(200),
     getEarningsCents(),
@@ -57,6 +59,7 @@ export default async function DashboardPage() {
     resolveAgentEns(),
     getRecentPricewatchCalls(10),
     getPricewatchEarningsCents(),
+    readTreasury(),
   ]);
 
   const distinctClients = new Set(feedback.map((f) => f.client.toLowerCase()))
@@ -406,8 +409,105 @@ export default async function DashboardPage() {
         </div>
       </Section>
 
+      {/* TRADING TREASURY (M1) */}
+      <Section
+        number="07"
+        title="trading treasury"
+        sub="M1 · funding-rate arb · base sepolia"
+      >
+        {treasury ? (
+          <div className="card-flat">
+            <p className="text-xs text-(--color-muted) max-w-2xl mb-5 leading-relaxed">
+              USDC custody for the funding-rate strategy. agent opens/closes
+              positions against a stubbed perp exchange. KeeperHub watches
+              the 6h heartbeat; if it goes stale, anyone (KH included) can
+              trigger <code>emergencyExit</code> and capital flows to the
+              splitter for shareholders to claim.
+            </p>
+            <div className="stat-grid">
+              <Cell
+                label="usdc balance"
+                value={`${(Number(treasury.usdcBalance) / 1_000_000).toFixed(2)}`}
+                unit="USDC"
+                accent
+              />
+              <Cell
+                label="position"
+                value={
+                  treasury.positionId ===
+                  "0x0000000000000000000000000000000000000000000000000000000000000000"
+                    ? "flat"
+                    : treasury.positionSize > 0n
+                      ? "long"
+                      : "short"
+                }
+                mono
+              />
+              <Cell
+                label="collateral"
+                value={`${(Number(treasury.positionCollateral) / 1_000_000).toFixed(2)}`}
+                unit="USDC"
+              />
+              <Cell
+                label="heartbeat"
+                value={
+                  treasury.killed
+                    ? "killed"
+                    : treasury.heartbeatStale
+                      ? "stale"
+                      : "fresh"
+                }
+                mono
+                amber={treasury.heartbeatStale && !treasury.killed}
+              />
+              <Cell
+                label="last beat"
+                value={
+                  relativeAge(
+                    new Date(
+                      Number(treasury.lastHeartbeat) * 1000,
+                    ).toISOString(),
+                  ) ?? "—"
+                }
+                mono
+              />
+              <Cell
+                label="timeout"
+                value={`${Math.round(Number(treasury.heartbeatTimeout) / 3600)}h`}
+                mono
+              />
+            </div>
+            <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-2 font-mono text-xs text-(--color-muted)">
+              <a
+                href={`${BASE_SEPOLIA_BASESCAN}/address/${treasury.address}`}
+                target="_blank"
+                rel="noreferrer"
+                className="link"
+              >
+                treasury {treasury.address.slice(0, 10)}…
+              </a>
+              <a
+                href={`${BASE_SEPOLIA_BASESCAN}/address/${treasury.agent}`}
+                target="_blank"
+                rel="noreferrer"
+                className="link"
+              >
+                agent {treasury.agent.slice(0, 10)}…
+              </a>
+            </div>
+          </div>
+        ) : (
+          <div className="card-flat p-5">
+            <p className="text-sm text-(--color-muted)">
+              treasury not deployed yet — TradingTreasury address missing
+              from Edge Config.
+            </p>
+          </div>
+        )}
+      </Section>
+
       {/* RECENT JOBS */}
-      <Section number="07" title="recent jobs">
+      <Section number="08" title="recent jobs">
         <div className="card-flat p-0">
           <PaginatedList
             emptyMessage="no paid jobs yet — once cron is live, simulated clients post every 2-5 minutes"

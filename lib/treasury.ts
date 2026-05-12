@@ -139,3 +139,71 @@ export async function pingHeartbeat(): Promise<Hex | null> {
   });
   return txHash;
 }
+
+/// Move USDC from the treasury into exchange collateral. Agent-only.
+export async function depositToExchange(amount: bigint): Promise<Hex> {
+  const address = await getTreasuryAddress();
+  if (!address) throw new Error("treasury address missing");
+  const wallet = baseSepoliaWalletClient("agent");
+  return wallet.writeContract({
+    address,
+    abi: ABI,
+    functionName: "depositToExchange",
+    args: [amount],
+  });
+}
+
+/// Pull USDC collateral back from the exchange into the treasury. Agent-only.
+export async function withdrawFromExchange(amount: bigint): Promise<Hex> {
+  const address = await getTreasuryAddress();
+  if (!address) throw new Error("treasury address missing");
+  const wallet = baseSepoliaWalletClient("agent");
+  return wallet.writeContract({
+    address,
+    abi: ABI,
+    functionName: "withdrawFromExchange",
+    args: [amount],
+  });
+}
+
+/// Open the single arb position. `size > 0` long, `size < 0` short (1e18 = 1 unit).
+export async function openPosition(
+  size: bigint,
+  collateral: bigint,
+): Promise<Hex> {
+  const address = await getTreasuryAddress();
+  if (!address) throw new Error("treasury address missing");
+  const wallet = baseSepoliaWalletClient("agent");
+  return wallet.writeContract({
+    address,
+    abi: ABI,
+    functionName: "openPosition",
+    args: [size, collateral],
+  });
+}
+
+/// Close the currently-open treasury position. Agent-only.
+export async function closePosition(): Promise<Hex> {
+  const address = await getTreasuryAddress();
+  if (!address) throw new Error("treasury address missing");
+  const wallet = baseSepoliaWalletClient("agent");
+  return wallet.writeContract({
+    address,
+    abi: ABI,
+    functionName: "closePosition",
+    args: [],
+  });
+}
+
+/// Forward `amount` of free treasury USDC to the splitter for shareholders.
+export async function distributeRevenue(amount: bigint): Promise<Hex> {
+  const address = await getTreasuryAddress();
+  if (!address) throw new Error("treasury address missing");
+  const wallet = baseSepoliaWalletClient("agent");
+  return wallet.writeContract({
+    address,
+    abi: ABI,
+    functionName: "distributeRevenue",
+    args: [amount],
+  });
+}
