@@ -531,7 +531,6 @@ export function buildTreasuryKillSwitch(args: {
           }),
           webhookPayload: JSON.stringify({
             kind: "kill-switch",
-            workflowRunId: "{{$run.id}}",
             txHash:
               "{{@write-emergency-exit:Call emergencyExit.transactionHash}}",
             summary: "tripped — capital flowing to splitter",
@@ -659,7 +658,6 @@ export function buildTreasuryFundingPoll(args: {
             "Content-Type": "application/json",
           }),
           webhookPayload: JSON.stringify({
-            workflowRunId: "{{$run.id}}",
             exchange: args.exchange,
             fundingRatePerSecond:
               "{{@read-rate:Read fundingRatePerSecond.result}}",
