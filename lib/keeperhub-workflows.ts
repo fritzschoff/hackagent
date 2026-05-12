@@ -770,3 +770,79 @@ export function buildTreasuryDividendDistribute(args: {
     edges,
   };
 }
+
+// ─── generic scheduled GET trigger ────────────────────────────────────────────
+
+/**
+ * Schedule → webhook GET wrapper used to migrate cron-driven endpoints
+ * off Vercel cron and onto KeeperHub. The webhook hits an internal
+ * /api/cron/* endpoint with `Authorization: Bearer ${cronSecret}` — the
+ * same header Vercel cron itself sets — so the endpoint's existing
+ * `verifyCronAuth` accepts the call without any code change.
+ *
+ * Putting these on KH gives us KeeperHub's schedule and observability
+ * surface for the trading loop, matching the agent's "KH is
+ * load-bearing" pitch. The endpoint itself stays exactly where it is.
+ */
+export function buildScheduledCronTrigger(args: {
+  name: string;
+  description: string;
+  cron: string; // e.g. "*/30 * * * *"
+  appUrl: string;
+  routePath: string; // e.g. "/api/cron/treasury-heartbeat"
+  cronSecret: string;
+}): WorkflowSpec {
+  const nodes = [
+    {
+      id: "trigger-schedule",
+      type: "trigger",
+      position: { x: 0, y: 0 },
+      data: {
+        type: "trigger",
+        label: "Schedule",
+        status: "idle",
+        config: {
+          triggerType: "Schedule",
+          scheduleCron: args.cron,
+          scheduleTimezone: "UTC",
+        },
+      },
+    },
+    {
+      id: "webhook-call",
+      type: "action",
+      position: { x: 320, y: 0 },
+      data: {
+        type: "action",
+        label: "Hit cron endpoint",
+        status: "idle",
+        config: {
+          actionType: "webhook/send-webhook",
+          webhookUrl: `${args.appUrl}${args.routePath}`,
+          webhookMethod: "GET",
+          webhookHeaders: JSON.stringify({
+            Authorization: `Bearer ${args.cronSecret}`,
+          }),
+          // GET with no body — KH still requires the field to exist.
+          webhookPayload: "",
+        },
+      },
+    },
+  ];
+
+  const edges = [
+    {
+      id: "e1",
+      type: "animated",
+      source: "trigger-schedule",
+      target: "webhook-call",
+    },
+  ];
+
+  return {
+    name: args.name,
+    description: args.description,
+    nodes,
+    edges,
+  };
+}
