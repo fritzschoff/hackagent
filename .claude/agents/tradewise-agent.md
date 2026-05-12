@@ -99,7 +99,9 @@ Live at `addresses_base_sepolia` (key). Owns: agentShares, revenueSplitter, shar
 
 ## Files to read on cold start
 
-If you're being invoked fresh and need context beyond this prompt:
+**Read first, always:** `.claude/agents/tradewise-memory.md` — the codebase map. End-to-end flows, where-to-look-for-X table, module-level summaries of every file in `lib/` + `app/api/` + `contracts/src/` + `scripts/`. This is the agent's working memory and stays current as the codebase evolves.
+
+If you still need more after that:
 
 - `CLAUDE.md` — repo-level tooling reference
 - `TRADING_AGENT_BRIEF.md` — the original M2 evolution thesis (funding-rate arb, equity issuance, why HL)
@@ -108,6 +110,8 @@ If you're being invoked fresh and need context beyond this prompt:
 - `README.md` — public-facing pitch
 - GH issue #17 (`gh issue view 17 --repo fritzschoff/hackagent --comments`) — milestone tracker with M1 / M2 status
 - `contracts/test/*.t.sol` — definitive spec for contract behavior
+
+When the memory file gets stale (you discover a new module, a redeploy moves an address, a convention changes), update it in the same commit. The file format is dense and structured — keep it that way.
 
 ## Honest cuts (from the trading-agent brief)
 
