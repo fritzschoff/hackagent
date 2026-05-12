@@ -79,7 +79,8 @@ export type KeeperHubKind =
   | "compliance-attest"
   | "primary-name"
   | "avatar-sync"
-  | "gateway-invalidate";
+  | "gateway-invalidate"
+  | "kill-switch";
 
 const ENV_BY_KIND: Record<KeeperHubKind, string> = {
   swap: "KEEPERHUB_WORKFLOW_ID_SWAP",
@@ -89,6 +90,7 @@ const ENV_BY_KIND: Record<KeeperHubKind, string> = {
   "primary-name": "KEEPERHUB_WORKFLOW_ID_PRIMARY_NAME",
   "avatar-sync": "KEEPERHUB_WORKFLOW_ID_AVATAR_SYNC",
   "gateway-invalidate": "KEEPERHUB_WORKFLOW_ID_GATEWAY_INVALIDATE",
+  "kill-switch": "KEEPERHUB_WORKFLOW_ID_KILL_SWITCH",
 };
 
 const EDGE_KEY_BY_KIND: Record<KeeperHubKind, string> = {
@@ -99,6 +101,7 @@ const EDGE_KEY_BY_KIND: Record<KeeperHubKind, string> = {
   "primary-name": "keeperhub_workflow_primary_name",
   "avatar-sync": "keeperhub_workflow_avatar_sync",
   "gateway-invalidate": "keeperhub_workflow_gateway_invalidate",
+  "kill-switch": "keeperhub_workflow_kill_switch",
 };
 
 export async function getKeeperHubWorkflowIdByKind(

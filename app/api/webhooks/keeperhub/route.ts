@@ -8,6 +8,7 @@ const KIND_VALUES: KeeperhubRunKind[] = [
   "heartbeat",
   "reputation-cache",
   "compliance-attest",
+  "kill-switch",
 ];
 
 function isKind(v: unknown): v is KeeperhubRunKind {

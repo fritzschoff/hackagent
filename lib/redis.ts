@@ -104,7 +104,8 @@ export type KeeperhubRunKind =
   | "swap"
   | "heartbeat"
   | "reputation-cache"
-  | "compliance-attest";
+  | "compliance-attest"
+  | "kill-switch";
 
 export type KeeperhubRun = {
   kind: KeeperhubRunKind;

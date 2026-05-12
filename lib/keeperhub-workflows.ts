@@ -6,7 +6,7 @@
  * (verified against the existing Heartbeat and Reputation-cache workflows).
  *
  * Integration ID i2ywfgrbbmtpr0hf1xh80 is the "test" Turnkey-managed wallet
- * integration (address 0xB28cCC07F397Af54c89b2Ff06b6c595F282856539).
+ * integration (address 0xB28cC07F397Af54c89b2Ff06b6c595F282856539).
  * The `signer` field must match the integration name ("test").
  */
 
@@ -55,7 +55,7 @@ const PUBLIC_RESOLVER_SETTEXT_ABI = JSON.stringify([
  * ReverseRegistrar.setName(label) on the matching chain.
  *
  * NOTE: The broadcaster is determined by the KeeperHub integration (Turnkey
- * wallet, currently "test" / 0xB28cCC07F397Af54c89b2Ff06b6c595F282856539).
+ * wallet, currently "test" / 0xB28cC07F397Af54c89b2Ff06b6c595F282856539).
  * ENSPrimaryNameSetter is therefore most useful for the Turnkey-managed wallet
  * (W3 M4 use case). For EOA wallets that hold their own private keys the
  * scripts/setup-primary-names.ts one-shot runner is the right tool.
@@ -395,6 +395,184 @@ export function buildGatewayCacheInvalidator(args: {
     name: "GatewayCacheInvalidator",
     description:
       "Webhook-triggered. Input: {event, agentId, tokenId, keys[]}. POSTs to /api/ens-gateway/cache/invalidate with bearer auth to purge stale CCIP-Read gateway cache entries after on-chain events (MemoryReencrypted, MemoryStaled, BidPlaced, etc.). Zero gas.",
+    nodes,
+    edges,
+  };
+}
+
+// ─── TreasuryKillSwitch ───────────────────────────────────────────────────────
+
+const TREASURY_HEARTBEAT_STALE_ABI = JSON.stringify([
+  {
+    type: "function",
+    name: "heartbeatStale",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bool" }],
+  },
+]);
+
+const TREASURY_EMERGENCY_EXIT_ABI = JSON.stringify([
+  {
+    type: "function",
+    name: "emergencyExit",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "reason", type: "string" }],
+    outputs: [],
+  },
+]);
+
+/**
+ * Schedule-triggered dead-man's switch for TradingTreasury (M1).
+ *
+ * Every hour: read heartbeatStale(); if true, call emergencyExit() to close
+ * the open position, pull collateral back, and forward all USDC to the
+ * splitter so shareholders can claim. emergencyExit reverts unless the
+ * heartbeat is stale, so even a misconfigured Condition node would be
+ * gas-only worst case — but the Condition wraps the call anyway so we don't
+ * spam revert txs.
+ *
+ * This workflow is what makes "even if the operator vanishes, shareholders
+ * get their capital back" a verifiable claim rather than a marketing line.
+ *
+ * The Turnkey-signed write does NOT need to be the treasury owner —
+ * emergencyExit() is permissionless once heartbeat is stale, so any wallet
+ * with Base Sepolia ETH works.
+ */
+export function buildTreasuryKillSwitch(args: {
+  appUrl: string;
+  tradingTreasury: `0x${string}`;
+}): WorkflowSpec {
+  const nodes = [
+    {
+      id: "trigger-schedule",
+      type: "trigger",
+      position: { x: 0, y: 0 },
+      data: {
+        type: "trigger",
+        label: "Hourly Schedule",
+        status: "idle",
+        config: {
+          triggerType: "Schedule",
+          scheduleCron: "0 * * * *",
+          scheduleTimezone: "UTC",
+        },
+      },
+    },
+    {
+      id: "read-stale",
+      type: "action",
+      position: { x: 320, y: 0 },
+      data: {
+        type: "action",
+        label: "Read heartbeatStale",
+        status: "idle",
+        config: {
+          actionType: "web3/read-contract",
+          contractAddress: args.tradingTreasury,
+          abi: TREASURY_HEARTBEAT_STALE_ABI,
+          useManualAbi: "true",
+          abiFunction: "heartbeatStale",
+          functionArgs: "[]",
+          network: BASE_SEPOLIA_CHAIN_ID,
+        },
+      },
+    },
+    {
+      id: "cond-stale",
+      type: "action",
+      position: { x: 640, y: 0 },
+      data: {
+        type: "action",
+        label: "Stale?",
+        status: "idle",
+        config: {
+          actionType: "Condition",
+          condition: "{{@read-stale:Read heartbeatStale.result}} === true",
+        },
+      },
+    },
+    {
+      id: "write-emergency-exit",
+      type: "action",
+      position: { x: 960, y: -80 },
+      data: {
+        type: "action",
+        label: "Call emergencyExit",
+        status: "idle",
+        config: {
+          actionType: "web3/write-contract",
+          contractAddress: args.tradingTreasury,
+          abi: TREASURY_EMERGENCY_EXIT_ABI,
+          useManualAbi: "true",
+          abiFunction: "emergencyExit",
+          functionArgs: JSON.stringify(["keeperhub dead-mans-switch"]),
+          signer: SIGNER,
+          integrationId: INTEGRATION_ID,
+          network: BASE_SEPOLIA_CHAIN_ID,
+          usePrivateMempool: false,
+        },
+      },
+    },
+    {
+      id: "webhook-notify",
+      type: "action",
+      position: { x: 1280, y: -80 },
+      data: {
+        type: "action",
+        label: "Notify app",
+        status: "idle",
+        config: {
+          actionType: "webhook/send-webhook",
+          webhookUrl: `${args.appUrl}/api/webhooks/keeperhub`,
+          webhookMethod: "POST",
+          webhookHeaders: JSON.stringify({
+            "Content-Type": "application/json",
+          }),
+          webhookPayload: JSON.stringify({
+            kind: "kill-switch",
+            workflowRunId: "{{$run.id}}",
+            txHash:
+              "{{@write-emergency-exit:Call emergencyExit.transactionHash}}",
+            summary: "tripped — capital flowing to splitter",
+          }),
+        },
+      },
+    },
+  ];
+
+  const edges = [
+    {
+      id: "e1",
+      type: "animated",
+      source: "trigger-schedule",
+      target: "read-stale",
+    },
+    {
+      id: "e2",
+      type: "animated",
+      source: "read-stale",
+      target: "cond-stale",
+    },
+    {
+      id: "e3",
+      type: "animated",
+      source: "cond-stale",
+      sourceHandle: "true",
+      target: "write-emergency-exit",
+    },
+    {
+      id: "e4",
+      type: "animated",
+      source: "write-emergency-exit",
+      target: "webhook-notify",
+    },
+  ];
+
+  return {
+    name: "TreasuryKillSwitch",
+    description:
+      "Schedule-triggered (hourly). Reads TradingTreasury.heartbeatStale(); if true, calls emergencyExit() via the Turnkey integration to close the open position, pull collateral, and forward all USDC to the RevenueSplitter so shareholders can claim. Load-bearing safety primitive: makes 'capital comes home if the operator vanishes' a verifiable property of the deployment.",
     nodes,
     edges,
   };
