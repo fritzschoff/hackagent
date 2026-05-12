@@ -577,3 +577,120 @@ export function buildTreasuryKillSwitch(args: {
     edges,
   };
 }
+
+// ─── TreasuryFundingPoll ──────────────────────────────────────────────────────
+
+const EXCHANGE_FUNDING_RATE_ABI = JSON.stringify([
+  {
+    type: "function",
+    name: "fundingRatePerSecond",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "int256" }],
+  },
+]);
+
+/**
+ * Schedule-triggered (every 5 minutes) funding-rate poll.
+ *
+ * Reads MockPerpExchange.fundingRatePerSecond() on Base Sepolia and pushes
+ * the snapshot to /api/keeperhub/funding-poll, which stashes it in Redis
+ * for the off-chain agent + dashboard to consume. Decouples timing-critical
+ * trading decisions from the agent's own cron so we can iterate on the
+ * decision policy without redeploying the agent.
+ *
+ * In M2 the read source is swapped out for the real Hyperliquid funding
+ * endpoint via HTTP Request, but the workflow shape stays identical.
+ */
+export function buildTreasuryFundingPoll(args: {
+  appUrl: string;
+  exchange: `0x${string}`;
+  webhookSecret: string;
+}): WorkflowSpec {
+  const nodes = [
+    {
+      id: "trigger-schedule",
+      type: "trigger",
+      position: { x: 0, y: 0 },
+      data: {
+        type: "trigger",
+        label: "5min Schedule",
+        status: "idle",
+        config: {
+          triggerType: "Schedule",
+          scheduleCron: "*/5 * * * *",
+          scheduleTimezone: "UTC",
+        },
+      },
+    },
+    {
+      id: "read-rate",
+      type: "action",
+      position: { x: 320, y: 0 },
+      data: {
+        type: "action",
+        label: "Read fundingRatePerSecond",
+        status: "idle",
+        config: {
+          actionType: "web3/read-contract",
+          contractAddress: args.exchange,
+          abi: EXCHANGE_FUNDING_RATE_ABI,
+          useManualAbi: "true",
+          abiFunction: "fundingRatePerSecond",
+          functionArgs: "[]",
+          network: BASE_SEPOLIA_CHAIN_ID,
+        },
+      },
+    },
+    {
+      id: "webhook-snapshot",
+      type: "action",
+      position: { x: 640, y: 0 },
+      data: {
+        type: "action",
+        label: "POST snapshot",
+        status: "idle",
+        config: {
+          actionType: "webhook/send-webhook",
+          webhookUrl: `${args.appUrl}/api/keeperhub/funding-poll`,
+          webhookMethod: "POST",
+          webhookHeaders: JSON.stringify({
+            Authorization: `Bearer ${args.webhookSecret}`,
+            "Content-Type": "application/json",
+          }),
+          webhookPayload: JSON.stringify({
+            workflowRunId: "{{$run.id}}",
+            exchange: args.exchange,
+            fundingRatePerSecond:
+              "{{@read-rate:Read fundingRatePerSecond.result}}",
+            triggeredAt:
+              "{{@trigger-schedule:5min Schedule.data.triggeredAt}}",
+          }),
+        },
+      },
+    },
+  ];
+
+  const edges = [
+    {
+      id: "e1",
+      type: "animated",
+      source: "trigger-schedule",
+      target: "read-rate",
+    },
+    {
+      id: "e2",
+      type: "animated",
+      source: "read-rate",
+      target: "webhook-snapshot",
+    },
+  ];
+
+  return {
+    name: "TreasuryFundingPoll",
+    description:
+      "Schedule-triggered (every 5 minutes). Reads MockPerpExchange.fundingRatePerSecond() on Base Sepolia and POSTs the snapshot to /api/keeperhub/funding-poll with bearer auth. The endpoint stashes the rate in Redis for the off-chain agent + dashboard to consume — KeeperHub becomes the bridge between on-chain truth and off-chain decisions. M2 swaps the source from MockPerpExchange to the live Hyperliquid REST endpoint without changing the workflow shape.",
+    nodes,
+    edges,
+  };
+}

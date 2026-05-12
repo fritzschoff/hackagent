@@ -4,6 +4,7 @@ import {
   getRecentKeeperhubRuns,
   getRecentPricewatchCalls,
   getPricewatchEarningsCents,
+  getLatestFundingSnapshot,
 } from "@/lib/redis";
 import { getCronStatuses } from "@/lib/cron-auth";
 import { readRecentFeedback, readRecentValidations } from "@/lib/erc8004";
@@ -48,6 +49,7 @@ export default async function DashboardPage() {
     pricewatchCalls,
     pricewatchEarningsCents,
     treasury,
+    funding,
   ] = await Promise.all([
     getRecentJobs(200),
     getEarningsCents(),
@@ -60,6 +62,7 @@ export default async function DashboardPage() {
     getRecentPricewatchCalls(10),
     getPricewatchEarningsCents(),
     readTreasury(),
+    getLatestFundingSnapshot(),
   ]);
 
   const distinctClients = new Set(feedback.map((f) => f.client.toLowerCase()))
@@ -474,6 +477,21 @@ export default async function DashboardPage() {
               <Cell
                 label="timeout"
                 value={`${Math.round(Number(treasury.heartbeatTimeout) / 3600)}h`}
+                mono
+              />
+              <Cell
+                label="funding"
+                value={
+                  funding
+                    ? `${(Number(funding.ratePerSecond) * 3600).toFixed(2)}/h`
+                    : "—"
+                }
+                unit={funding ? "µUSDC" : undefined}
+                mono
+              />
+              <Cell
+                label="poll age"
+                value={funding ? (relativeAge(new Date(funding.ts).toISOString()) ?? "—") : "—"}
                 mono
               />
             </div>

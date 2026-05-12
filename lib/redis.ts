@@ -105,7 +105,8 @@ export type KeeperhubRunKind =
   | "heartbeat"
   | "reputation-cache"
   | "compliance-attest"
-  | "kill-switch";
+  | "kill-switch"
+  | "funding-poll";
 
 export type KeeperhubRun = {
   kind: KeeperhubRunKind;
@@ -190,6 +191,40 @@ export async function getPricewatchEarningsCents(): Promise<number> {
   if (!r) return 0;
   const v = await r.get("pricewatch:earnings_cents");
   return Number(v ?? 0);
+}
+
+export type FundingSnapshot = {
+  /// Signed funding rate in USDC base units per asset unit per second.
+  /// Positive = longs pay shorts. Convention matches MockPerpExchange.
+  ratePerSecond: string;
+  /// Address of the perp exchange the snapshot was read from.
+  exchange: string;
+  /// KeeperHub workflow run id that recorded this snapshot.
+  workflowRunId: string;
+  /// Server-side receive timestamp (ms).
+  ts: number;
+};
+
+export async function pushFundingSnapshot(snap: FundingSnapshot): Promise<void> {
+  const r = getRedis();
+  if (!r) return;
+  // Keep the latest as a single key for hot reads + a small ring buffer for
+  // dashboard history.
+  await r.set("treasury:funding_rate:latest", JSON.stringify(snap));
+  await r.lpush("treasury:funding_rate:history", JSON.stringify(snap));
+  await r.ltrim("treasury:funding_rate:history", 0, 99);
+}
+
+export async function getLatestFundingSnapshot(): Promise<FundingSnapshot | null> {
+  const r = getRedis();
+  if (!r) return null;
+  const raw = await r.get("treasury:funding_rate:latest");
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as FundingSnapshot;
+  } catch {
+    return null;
+  }
 }
 
 export const CRON_ROUTES = [

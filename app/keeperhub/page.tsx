@@ -304,6 +304,7 @@ export default async function KeeperHubPage() {
     "reputation-cache": null,
     "compliance-attest": null,
     "kill-switch": null,
+    "funding-poll": null,
   };
   for (const run of allRuns) {
     if (lastRunByKind[run.kind] === null) lastRunByKind[run.kind] = run.ts;
