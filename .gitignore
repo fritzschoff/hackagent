@@ -34,3 +34,7 @@ next-env.d.ts
 # Anchored with leading slash so app/docs/ (the in-app /docs route) is NOT matched.
 # FEEDBACK.md at the root is the only documentation tracked (Uniswap prize req).
 /docs/
+
+# Claude Code local settings (user-scoped, per-machine). Agents in
+# .claude/agents/*.md DO get tracked since they're project-scoped.
+.claude/settings.local.json
