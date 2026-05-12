@@ -1,7 +1,18 @@
 import { privateKeyToAccount } from "viem/accounts";
-import { createPublicClient, createWalletClient, http } from "viem";
+import { createPublicClient, createWalletClient, defineChain, http } from "viem";
 import { baseSepolia, sepolia } from "viem/chains";
 import type { PrivateKeyAccount } from "viem/accounts";
+
+/// HyperEVM — chain 999 per HL_FACTS.md §1. RPC overridable via env to
+/// support a future hyperliquid-testnet RPC once verified.
+export const hyperEvm = defineChain({
+  id: 999,
+  name: "HyperEVM",
+  nativeCurrency: { name: "HYPE", symbol: "HYPE", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://rpc.hyperliquid.xyz/evm"] },
+  },
+});
 
 export type WalletId =
   | "agent"
@@ -65,6 +76,21 @@ export function baseSepoliaWalletClient(id: WalletId) {
     account: loadAccount(id),
     chain: baseSepolia,
     transport: http(process.env.BASE_SEPOLIA_RPC_URL),
+  });
+}
+
+export function hyperEvmPublicClient() {
+  return createPublicClient({
+    chain: hyperEvm,
+    transport: http(process.env.HYPEREVM_RPC_URL),
+  });
+}
+
+export function hyperEvmWalletClient(id: WalletId) {
+  return createWalletClient({
+    account: loadAccount(id),
+    chain: hyperEvm,
+    transport: http(process.env.HYPEREVM_RPC_URL),
   });
 }
 
