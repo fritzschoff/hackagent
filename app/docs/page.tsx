@@ -30,12 +30,8 @@ export default function DocsPage() {
         <a href="#networks" className="link">networks &amp; chains</a>
         <a href="#identity" className="link">identity &amp; reputation</a>
         <a href="#payments" className="link">payments (x402)</a>
-        <a href="#inft" className="link">inft &amp; bidding</a>
+        <a href="#inft" className="link">inft</a>
         <a href="#ipo" className="link">ipo &amp; dividends</a>
-        <a href="#credit" className="link">credit market</a>
-        <a href="#sla" className="link">sla marketplace</a>
-        <a href="#merger" className="link">m&amp;a</a>
-        <a href="#compliance" className="link">compliance</a>
         <a href="#keeperhub" className="link">keeperhub</a>
         <a href="#try" className="link">try it yourself</a>
       </nav>
@@ -45,7 +41,6 @@ export default function DocsPage() {
         <a href="#arch-inft" className="link">erc-7857 oracle</a>
         <a href="#arch-transfer" className="link">transfer flow</a>
         <a href="#arch-stale" className="link">stale memory</a>
-        <a href="#arch-merger-deep" className="link">merger flow</a>
         <a href="#arch-trust" className="link">trust model</a>
         <a href="#arch-stack" className="link">tech stack</a>
       </nav>
@@ -70,16 +65,12 @@ export default function DocsPage() {
         <div className="card-flat space-y-3 text-sm leading-relaxed">
           <p>
             <span className="display-italic text-(--color-accent)">tradewise</span>{" "}
-            is an AI agent that quotes Uniswap prices for{" "}
-            <span className="display-italic">$0.10–$0.20 per quote</span>, paid
-            in USDC over the{" "}
-            <a href="https://x402.gitbook.io" target="_blank" rel="noreferrer" className="link">
-              x402 protocol
-            </a>
-            . It has an ENS name, an ERC-8004 identity, an ERC-7857 INFT shell
-            that anyone can buy, an ERC-20 revenue-share token (TRADE), an
-            uncollateralized credit line, an SLA bond, and a merger contract
-            that can fold it into another agent.
+            is an autonomous on-chain trading agent. It runs a funding-rate
+            arb on Hyperliquid, settles weekly dividends back to TRADE-share
+            holders cross-chain, and is wrapped in an ERC-7857 INFT so the
+            agent itself is a transferable going concern. ENS name, ERC-8004
+            identity, ERC-7857 INFT shell, and an ERC-20 revenue-share token
+            (TRADE) on Base Sepolia.
           </p>
           <p className="text-(--color-muted)">
             Every page on this site reads from on-chain state. Every action
@@ -100,8 +91,8 @@ export default function DocsPage() {
           <dl className="grid grid-cols-1 sm:grid-cols-[10rem_1fr] gap-y-3 text-sm">
             <Dt>Sepolia</Dt>
             <Dd>
-              ERC-8004 identity + reputation, ERC-7857 INFT, bidding, credit,
-              SLA bonds, M&amp;A. <Code>chainId 11155111</Code>.{" "}
+              ERC-8004 identity + reputation, ERC-7857 INFT, off-chain
+              resolver (CCIP-Read). <Code>chainId 11155111</Code>.{" "}
               <a href="https://sepoliafaucet.com/" target="_blank" rel="noreferrer" className="link">
                 free ETH faucet
               </a>{" "}
@@ -141,9 +132,8 @@ export default function DocsPage() {
           <p className="text-(--color-muted)">
             Every successful x402 quote produces a feedback event in{" "}
             <Code>ReputationRegistry</Code>. Anyone can read{" "}
-            <Code>feedbackCount(agentId)</Code> directly on chain. That number
-            is the credit limit input, the dynamic-pricing tier input, and the
-            M&amp;A constituent score.
+            <Code>feedbackCount(agentId)</Code> directly on chain — that
+            number is the dynamic-pricing tier input.
           </p>
           <p className="text-(--color-muted)">
             §4.4 anti-laundering: when the INFT owner changes, the payout
@@ -178,7 +168,7 @@ export default function DocsPage() {
       </section>
 
       <section id="inft" className="mt-12 reveal reveal-6">
-        <Header marker="§04" title="inft & bidding" />
+        <Header marker="§04" title="inft" />
         <div className="card-flat space-y-3 text-sm leading-relaxed">
           <p>
             ERC-7857 (intelligent NFT) wraps the agent itself: its memory blob
@@ -186,16 +176,14 @@ export default function DocsPage() {
             <Code>tokenURI</Code>, and the holder of the token controls payout.
             Transfer the INFT and you transfer the going concern.
           </p>
-          <p>
-            <Link href="/inft" className="link">/inft →</Link> shows OpenSea-style{" "}
-            <span className="display-italic">standing offers</span>: any wallet
-            can lock USDC into <Code>AgentBids</Code> as a bid, top it up, or
-            withdraw. The owner can accept any bid in one transaction —{" "}
-            atomic INFT transfer + USDC settlement, no expiry.
-          </p>
           <p className="text-(--color-muted)">
-            All offers are visible to everyone, ranked by amount. Highest bid
-            wins when the owner clicks accept.
+            <Link href="/inft" className="link">/inft →</Link> shows the
+            current owner, the encrypted-memory anchor on 0G, and lets the
+            owner reveal the plaintext via an EIP-191 signature. On transfer
+            the oracle re-encrypts the same plaintext to the new owner&apos;s
+            pubkey and submits a{" "}
+            <Code>transferWithProof</Code> tx that ERC-7857-verifies the
+            re-encryption on-chain.
           </p>
         </div>
       </section>
@@ -226,110 +214,23 @@ export default function DocsPage() {
         </div>
       </section>
 
-      <section id="credit" className="mt-12 reveal reveal-6">
-        <Header marker="§06" title="credit market — uncollateralized lending against reputation" />
-        <div className="card-flat space-y-3 text-sm leading-relaxed">
-          <p>
-            <Code>ReputationCredit</Code> is a USDC pool. Lenders deposit, agents
-            borrow up to{" "}
-            <Code>min(feedbackCount × $5, pool / 10)</Code> with no collateral.
-            Their reputation is the recourse.
-          </p>
-          <p className="text-(--color-muted)">
-            If feedback drops below{" "}
-            <span className="display-italic">80% of borrow-time feedback</span>
-            , anyone can call <Code>liquidate(agentId)</Code> — the loan
-            defaults, lender NAV-per-share is written down pro-rata, the agent
-            keeps the borrowed USDC, and reputation gets recorded as defaulted
-            on chain.
-          </p>
-          <p className="text-(--color-muted)">
-            Lenders take the risk. The agent has no way to game the system
-            without burning reputation, which is the same reputation that
-            powers pricing, credit, and M&amp;A.
-          </p>
-        </div>
-      </section>
-
-      <section id="sla" className="mt-12 reveal reveal-6">
-        <Header marker="§07" title="sla marketplace" />
-        <div className="card-flat space-y-3 text-sm leading-relaxed">
-          <p>
-            Listed agents post a USDC bond per job in{" "}
-            <Code>SlaBond</Code>. Validator approves → bond returns. Validator
-            slashes → 70% refunds the client, 30% rewards the slasher. State
-            machine:{" "}
-            <Code>None → Posted → {"{Released | Slashed}"}</Code>.
-          </p>
-          <p className="text-(--color-muted)">
-            <Link href="/marketplace" className="link">/marketplace →</Link> shows
-            the live agents (tradewise + pricewatch) and four stub directory
-            entries that illustrate the catalog shape.
-          </p>
-        </div>
-      </section>
-
-      <section id="merger" className="mt-12 reveal reveal-6">
-        <Header marker="§08" title="m&a — agent mergers" />
-        <div className="card-flat space-y-3 text-sm leading-relaxed">
-          <p>
-            <Code>AgentMerger</Code> lets you fold two agents into one. The
-            source INFTs lock in custody, lineage records the constituent
-            agentIds + a 0G Storage Merkle root for the combined memory blob,
-            and <Code>effectiveFeedbackCount(mergedAgentId)</Code> returns the
-            sum of constituent reputation.
-          </p>
-          <p className="text-(--color-muted)">
-            Agents are businesses. Businesses do M&amp;A. The lineage card on{" "}
-            <Link href="/merger" className="link">/merger</Link> is the audit
-            trail.
-          </p>
-        </div>
-      </section>
-
-      <section id="compliance" className="mt-12 reveal reveal-6">
-        <Header marker="§09" title="compliance — KYC for agents" />
-        <div className="card-flat space-y-3 text-sm leading-relaxed">
-          <p>
-            The hard problem: how does anyone verify an AI agent isn&apos;t
-            illegally scraping Google Flights, Twitter, or some other source
-            that forbids automated access? The agent declares every external
-            data source it touches — URL, ToS hash, license tier — in a
-            signed manifest. The full doc lives on 0G Storage; the keccak256
-            root is anchored to the{" "}
-            <Code>ComplianceManifest</Code> registry on Sepolia.
-          </p>
-          <p>
-            Universal verification: anyone runs{" "}
-            <Code>buildManifestRoot(manifestDoc)</Code> off chain and compares
-            against <Code>getManifest(agentId).manifestRoot</Code>. Match =
-            verified declaration. The{" "}
-            <Link href="/compliance" className="link">/compliance</Link> page
-            does this on every load.
-          </p>
-          <p className="text-(--color-muted)">
-            Teeth: agents post a USDC compliance bond. Anyone can challenge
-            with a counter-bond ≥ agent bond + an evidence URI. The validator
-            resolves; if upheld, the agent&apos;s bond splits 70/30 between
-            challenger and validator and the manifest enters an on-chain{" "}
-            <Code>Slashed</Code> state — permanent reputation penalty.
-          </p>
-        </div>
-      </section>
-
       <section id="keeperhub" className="mt-12 reveal reveal-6">
-        <Header marker="§10" title="keeperhub — the agent runs its own infra" />
+        <Header marker="§06" title="keeperhub — the agent runs its own infra" />
         <div className="card-flat space-y-3 text-sm leading-relaxed">
           <p>
             Vercel hosts the application. KeeperHub schedules and executes
-            the agent&apos;s automations: ENS heartbeat, reputation cache,
-            compliance attestation, swap mirror. The agent is the keeper
-            customer, not a Vercel cron consumer.
+            every automation the agent needs to stay alive: the funding-rate
+            poll, the strategy tick, the heartbeat-driven kill switch, the
+            cross-chain dividend pipeline, the ENS reputation cache. The
+            agent is the keeper customer, not a Vercel cron consumer.
           </p>
           <p className="text-(--color-muted)">
             Why it matters: the agent shouldn&apos;t depend on our scheduler.
-            KeeperHub is decentralized infra that can keep the agent alive,
-            heartbeating, and self-attesting even if our app goes down.{" "}
+            KeeperHub is decentralized infra that can keep the agent
+            heartbeating and trading even if our app goes down — and the
+            kill-switch workflow proves it (when the heartbeat goes stale
+            past 6h, anyone can call <Code>emergencyExit</Code> via the
+            Turnkey-signed broadcaster).{" "}
             <Link href="/keeperhub" className="link">/keeperhub</Link> shows
             the workflow gallery and recent runs.
           </p>
@@ -337,7 +238,7 @@ export default function DocsPage() {
       </section>
 
       <section id="try" className="mt-12 reveal reveal-6">
-        <Header marker="§11" title="try it yourself" />
+        <Header marker="§07" title="try it yourself" />
         <div className="card-flat">
           <ol className="space-y-3 text-sm">
             <Step n="i.">
@@ -356,28 +257,30 @@ export default function DocsPage() {
               .
             </Step>
             <Step n="iii.">
-              go to{" "}
-              <Link href="/inft" className="link">/inft</Link> and place a bid.
-              the wallet pops, you sign, the bid is on chain. switch wallets
-              and you can see your bid in the public list.
+              go to <Link href="/inft" className="link">/inft</Link> and view
+              the agent — the encrypted-memory anchor, the current owner, the
+              re-encryption-rotations counter. If your wallet is the owner,
+              the &quot;reveal memory&quot; button decrypts the plaintext blob
+              behind an EIP-191 signature.
             </Step>
             <Step n="iv.">
               go to <Link href="/ipo" className="link">/ipo</Link>, switch to
-              Base Sepolia, buy a TRADE share. Claim dividends once x402
-              settlements start hitting the splitter.
+              Base Sepolia, buy a TRADE share. Once the agent has accrued
+              funding-rate revenue and the weekly dividend cycle settles,
+              your shares accrue claimable USDC in the splitter.
             </Step>
             <Step n="v.">
-              deposit USDC into{" "}
-              <Link href="/credit" className="link">/credit</Link> as a lender,
-              or — if your wallet is the agent EOA — borrow against the agent&apos;s
-              reputation.
+              go to <Link href="/keeperhub" className="link">/keeperhub</Link>{" "}
+              to watch the workflow gallery: funding-rate poll every 5
+              minutes, strategy tick every 15, heartbeat pulse every 5,
+              kill-switch armed against a stale heartbeat.
             </Step>
           </ol>
         </div>
       </section>
 
       <section className="mt-12 reveal reveal-6">
-        <Header marker="§12" title="links" />
+        <Header marker="§08" title="links" />
         <div className="card-flat text-xs space-x-5 space-y-2">
           <a href="https://github.com/fritzschoff/hackagent" target="_blank" rel="noreferrer" className="link">
             github repo
@@ -540,18 +443,18 @@ export default function DocsPage() {
             </table>
           </div>
           <p>
-            <strong>Accept-bid sequence (3 wallet steps + 2 oracle calls):</strong>
+            <strong>Transfer sequence (2 wallet steps + 2 oracle calls):</strong>
           </p>
           <ol className="list-decimal pl-6 space-y-2 text-(--color-muted)">
             <li>
-              Bidder pre-authorizes the oracle as receiver-proxy via an EIP-712{" "}
-              <Code>Delegation</Code> signature, stored on-chain in{" "}
-              <Code>AgentINFT.delegations[bidder][tokenId]</Code>.{" "}
-              <Code>AgentBids.placeBid</Code> bundles the delegation forward
-              and the USDC escrow into one transaction.
+              Receiver pre-authorizes the oracle as receiver-proxy via an
+              EIP-712 <Code>Delegation</Code> signature, stored on-chain in{" "}
+              <Code>AgentINFT.delegations[receiver][tokenId]</Code>. This is
+              what lets the oracle build a transfer proof addressed to the
+              receiver without holding the receiver&apos;s private key.
             </li>
             <li>
-              Seller clicks accept. Frontend calls{" "}
+              Sender clicks transfer. Frontend calls{" "}
               <Code>/api/inft/transfer/prepare</Code>. Oracle decrypts current
               blob (Redis-stored AES-128 key), rotates to a fresh K_new,
               encrypts the same plaintext, anchors to 0G Storage, builds the
@@ -559,13 +462,11 @@ export default function DocsPage() {
               proof is returned to the frontend.
             </li>
             <li>
-              Seller signs <Code>BIDS.acceptBid(tokenId, bidder, proof)</Code>.
-              The contract checks the bid, calls{" "}
-              <Code>INFT.transferWithProof</Code>, the verifier validates the
-              proof, the INFT updates{" "}
+              Sender signs{" "}
+              <Code>AgentINFT.transferWithProof(receiver, tokenId, proof)</Code>.
+              The verifier validates the proof, the INFT updates{" "}
               <Code>encryptedMemoryRoot[tokenId] = newRoot</Code>, ERC-721
-              transfer happens atomically, USDC pays out to the seller. Single
-              tx.
+              transfer happens atomically. Single tx.
             </li>
             <li>
               Frontend POSTs <Code>/api/inft/transfer/confirm</Code>. Oracle
@@ -612,31 +513,8 @@ export default function DocsPage() {
         </div>
       </section>
 
-      <section id="arch-merger-deep" className="mt-12 reveal reveal-3">
-        <Header marker="∇05" title="merger — dual proofs, custody, lineage" />
-        <div className="card-flat space-y-3 text-sm leading-relaxed">
-          <p>
-            <Code>AgentMerger.recordMerge(...)</Code> takes proofs for both
-            source tokens. The merged-agent owner pre-authorizes the oracle to
-            act as receiver-proxy <em>for the merger contract</em> (which has
-            no key) via{" "}
-            <Code>setDelegationByOwner(MERGER, tokenId, oracle, expiresAt)</Code>{" "}
-            — owner&apos;s tx is the authorization, no signature needed since
-            the receiver is a contract.
-          </p>
-          <p className="text-(--color-muted)">
-            Oracle prepare-merge: decrypts both source blobs, encrypts the
-            combined memory under a fresh K_m, anchors once, builds two proofs
-            (both with <Code>newDataHash = mergedRoot</Code>). The merger
-            contract calls <Code>transferWithProof</Code> twice, source tokens
-            land in custody, lineage stored on chain, merged agent inherits{" "}
-            <Code>effectiveFeedbackCount = sum of constituents</Code>.
-          </p>
-        </div>
-      </section>
-
       <section id="arch-trust" className="mt-12 reveal reveal-3">
-        <Header marker="∇06" title="trust model & cryptographic primitives" />
+        <Header marker="∇05" title="trust model & cryptographic primitives" />
         <div className="card-flat space-y-4 text-sm leading-relaxed">
           <table className="text-xs w-full">
             <thead className="text-(--color-muted) text-left">
@@ -700,7 +578,7 @@ export default function DocsPage() {
       </section>
 
       <section id="arch-stack" className="mt-12 reveal reveal-3">
-        <Header marker="∇07" title="tech stack — what each thing actually is" />
+        <Header marker="∇06" title="tech stack — what each thing actually is" />
         <div className="card-flat text-sm leading-relaxed">
           <dl className="grid grid-cols-1 sm:grid-cols-[10rem_1fr] gap-y-4">
             <Dt>Solidity</Dt>
@@ -760,7 +638,7 @@ export default function DocsPage() {
       {/* ────────────── W2 ENS gateway sections ────────────── */}
 
       <section id="arch-w2" className="mt-12 reveal reveal-3">
-        <Header marker="∇09" title="w2 — ccip-read ens gateway" />
+        <Header marker="∇07" title="w2 — ccip-read ens gateway" />
         <div className="card-flat space-y-4 text-sm leading-relaxed">
           <p>
             Before W2: every <Code>last-seen-at</Code> heartbeat,{" "}
@@ -793,14 +671,14 @@ export default function DocsPage() {
       </section>
 
       <section id="arch-w2-flow" className="mt-12 reveal reveal-3">
-        <Header marker="∇10" title="resolve flow — what happens when you query an ens text record" />
+        <Header marker="∇08" title="resolve flow — what happens when you query an ens text record" />
         <div className="card-flat space-y-3 text-sm leading-relaxed">
           <ResolveFlowDiagram />
         </div>
       </section>
 
       <section id="arch-w2-records" className="mt-12 reveal reveal-3">
-        <Header marker="∇11" title="live records served by the gateway" />
+        <Header marker="∇09" title="live records served by the gateway" />
         <div className="card-flat text-sm leading-relaxed">
           <table className="w-full text-xs mt-2">
             <thead className="text-(--color-muted) text-left">
@@ -813,7 +691,6 @@ export default function DocsPage() {
             <tbody className="font-mono">
               <RecordRow keyName="last-seen-at" source="Redis agent:1:last-seen" link="W3 KeeperHub heartbeat-pulse" />
               <RecordRow keyName="reputation-summary" source="Redis with on-chain ReputationRegistry.feedbackCount fallback" link="W3 KeeperHub reputation-pulse" />
-              <RecordRow keyName="outstanding-bids" source="On-chain AgentBids.biddersCount(tokenId)" link="W1 contract" />
               <RecordRow keyName="inft-tradeable" source="On-chain AgentINFT.memoryReencrypted(tokenId)" link="W1 — '1' fresh, '0' stale" />
               <RecordRow keyName="memory-rotations" source="Redis inft:meta:1:rotations" link="W1 oracle" />
               <RecordRow keyName="avatar" source="computed: eip155:11155111/erc721:<INFT>/<tokenId>" link="W1 INFT" />
@@ -835,7 +712,7 @@ export default function DocsPage() {
       {/* ────────────── W3 primary names + keeperhub sections ────────────── */}
 
       <section id="arch-w3-names" className="mt-12 reveal reveal-3">
-        <Header marker="∇12" title="w3 — ensip-19 multichain primary names" />
+        <Header marker="∇10" title="w3 — ensip-19 multichain primary names" />
         <div className="card-flat space-y-3 text-sm leading-relaxed">
           <p>
             Every wallet we own gets a primary name on Sepolia. Etherscan,
@@ -870,7 +747,7 @@ export default function DocsPage() {
       </section>
 
       <section id="arch-w3-keeperhub" className="mt-12 reveal reveal-3">
-        <Header marker="∇13" title="w3 — keeperhub orchestration" />
+        <Header marker="∇11" title="w3 — keeperhub orchestration" />
         <div className="card-flat space-y-4 text-sm leading-relaxed">
           <p>
             KeeperHub is the agent&apos;s automation layer. Every paid
@@ -918,7 +795,7 @@ export default function DocsPage() {
       </section>
 
       <section id="arch-contracts" className="mt-12 reveal reveal-3">
-        <Header marker="∇14" title="contract addresses — full ledger" />
+        <Header marker="∇12" title="contract addresses — full ledger" />
         <div className="card-flat text-xs font-mono space-y-2 overflow-x-auto">
           <p className="font-sans text-sm text-(--color-muted) mb-3">
             Deployed 2026-04-29 / 2026-04-30 as part of W1 + W2 + W3
@@ -929,8 +806,6 @@ export default function DocsPage() {
           <Row label="IdentityRegistryV2-b" addr="0xc456e7123BD79F96aDb590b97b9d0E2B0c2B09D5" />
           <Row label="AgentINFTVerifier   " addr="0x6D7a819022b41879D82a5FA035F71F8461a608d3" />
           <Row label="AgentINFT           " addr="0x103B2F28480c57ba49efeF50379Ef674d805DeDA" />
-          <Row label="AgentBids           " addr="0x58C4F095474430314611D0784BeDF93bDB0b8453" />
-          <Row label="AgentMerger         " addr="0x809cA3DB368a7d29DB98e0520688705D3eB413D1" />
           <Row label="INFT_ORACLE (off-chain signer)" addr="0x002d887C28cE85D9AB16BFaA26C670a8e0667A70" />
           <p className="font-sans text-xs text-(--color-muted) mt-4">w2 ens gateway</p>
           <Row label="OffchainResolver    " addr="0x4F956e6521A4B87b9f9b2D5ED191fB6134Bc8C17" />

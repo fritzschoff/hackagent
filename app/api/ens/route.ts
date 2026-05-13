@@ -6,7 +6,6 @@ const TEXT_KEYS = [
   "last-seen-at",
   "memory-rotations",
   "inft-tradeable",
-  "outstanding-bids",
   "reputation-summary",
   "avatar",
   "agent-card",
