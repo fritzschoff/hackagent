@@ -12,6 +12,7 @@ const KIND_VALUES: KeeperhubRunKind[] = [
   "funding-poll",
   "dividend-distribute",
   "dividend-step-1",
+  "strategy",
 ];
 
 function isKind(v: unknown): v is KeeperhubRunKind {

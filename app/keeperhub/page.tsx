@@ -2,6 +2,7 @@ import { getRecentKeeperhubRuns, type KeeperhubRunKind } from "@/lib/redis";
 import {
   getKeeperHubWorkflowIdByKind,
   getSepoliaAddresses,
+  type KeeperHubKind,
 } from "@/lib/edge-config";
 import {
   AGENT_ENS,
@@ -24,8 +25,14 @@ type RecipeNode = {
   note?: string;
 };
 
+/// A workflow rendered on this page has BOTH a Redis-run-kind (so the
+/// runs table can filter to it) AND a KH workflow id (so we can show
+/// "configured / not configured"). The intersection of those two
+/// type unions is what's allowed here. Off-chain strategy ticks are
+/// in `KeeperhubRunKind` but not `KeeperHubKind` (no KH workflow
+/// behind them), so they don't render in this list.
 type Workflow = {
-  kind: KeeperhubRunKind;
+  kind: KeeperhubRunKind & KeeperHubKind;
   title: string;
   schedule: string;
   description: string;
@@ -182,6 +189,7 @@ export default async function KeeperHubPage() {
     "funding-poll": null,
     "dividend-distribute": null,
     "dividend-step-1": null,
+    strategy: null,
   };
   for (const run of allRuns) {
     if (lastRunByKind[run.kind] === null) lastRunByKind[run.kind] = run.ts;

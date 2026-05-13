@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
   }
 
   await pushKeeperhubRun({
-    kind: "funding-poll",
+    kind: "strategy",
     jobId: `strategy-${ts}`,
     workflowRunId: `strategy-${ts}`,
     txHash,

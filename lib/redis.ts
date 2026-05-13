@@ -107,7 +107,8 @@ export type KeeperhubRunKind =
   | "kill-switch"
   | "funding-poll"
   | "dividend-distribute"
-  | "dividend-step-1";
+  | "dividend-step-1"
+  | "strategy";
 
 export type KeeperhubRun = {
   kind: KeeperhubRunKind;
@@ -189,13 +190,20 @@ export async function getLatestFundingSnapshot(): Promise<FundingSnapshot | null
   }
 }
 
+/// Routes that record into the `cron:<route>:last` Redis key via
+/// `recordCronTick`. Kept aligned with `vercel.json` plus the treasury
+/// crons that are driven by KH-triggered webhooks (they still call
+/// `recordCronTick`). Any cron whose status the dashboard surfaces
+/// (`getAllCronStatuses`) must be listed here.
 export const CRON_ROUTES = [
   "/api/cron/agent-tick",
-  "/api/cron/client-tick",
   "/api/cron/validator-tick",
   "/api/cron/storage-sync",
   "/api/cron/reputation-cache",
   "/api/cron/ens-heartbeat",
+  "/api/cron/treasury-heartbeat",
+  "/api/cron/treasury-strategy",
+  "/api/cron/treasury-strategy-hl",
 ] as const;
 
 export async function recordCronTick(
