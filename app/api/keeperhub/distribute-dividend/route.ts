@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { pushKeeperhubRun } from "@/lib/redis";
 import { readTreasury, distributeRevenue } from "@/lib/treasury";
 import { appendTradeLog, buildDistributeEntry } from "@/lib/treasury-log";
+import { verifyKeeperhubWebhook, unauthorized } from "@/lib/cron-auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -18,21 +19,7 @@ const MIN_OPERATING_RESERVE = 100_000n;
 /// (if there's a non-zero remainder) calls TradingTreasury.distributeRevenue
 /// from AGENT_PK. Bearer auth against KEEPERHUB_WEBHOOK_SECRET.
 export async function POST(req: NextRequest) {
-  const secret = process.env.KEEPERHUB_WEBHOOK_SECRET;
-  if (!secret) {
-    return NextResponse.json(
-      { ok: false, error: "secret not configured" },
-      { status: 500 },
-    );
-  }
-  const header = req.headers.get("authorization") ?? "";
-  const provided = header.startsWith("Bearer ") ? header.slice(7) : "";
-  if (provided !== secret) {
-    return NextResponse.json(
-      { ok: false, error: "unauthorized" },
-      { status: 401 },
-    );
-  }
+  if (!verifyKeeperhubWebhook(req)) return unauthorized();
 
   const treasury = await readTreasury();
   if (!treasury) {

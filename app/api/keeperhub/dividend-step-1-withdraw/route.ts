@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadAccount } from "@/lib/wallets";
-import { pushKeeperhubRun, tryAcquireDebounce } from "@/lib/redis";
+import { pushKeeperhubRun, tryAcquireDebounce, getRedis } from "@/lib/redis";
 import { getClearinghouseState, withdraw } from "@/lib/hyperliquid";
 import { appendTradeLog } from "@/lib/treasury-log";
+import { verifyKeeperhubWebhook, unauthorized } from "@/lib/cron-auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -22,33 +23,16 @@ const DEFAULT_OPERATING_RESERVE_USDC = 5;
 /// two withdrawals.
 ///
 /// Bearer auth against KEEPERHUB_WEBHOOK_SECRET.
+const DEBOUNCE_KEY = "dividend-step-1:debounce";
+
 export async function POST(req: NextRequest) {
-  const secret = process.env.KEEPERHUB_WEBHOOK_SECRET;
-  if (!secret) {
-    return NextResponse.json(
-      { ok: false, error: "secret not configured" },
-      { status: 500 },
-    );
-  }
-  const provided = (req.headers.get("authorization") ?? "").startsWith(
-    "Bearer ",
-  )
-    ? (req.headers.get("authorization") ?? "").slice(7)
-    : "";
-  if (provided !== secret) {
-    return NextResponse.json(
-      { ok: false, error: "unauthorized" },
-      { status: 401 },
-    );
-  }
+  if (!verifyKeeperhubWebhook(req)) return unauthorized();
 
   // 1h debounce. Prevents a double-fire (e.g. KH schedule + manual trigger
   // within the same hour) from issuing two withdrawals while the first
-  // is still in flight.
-  const acquired = await tryAcquireDebounce(
-    "dividend-step-1:debounce",
-    3600,
-  );
+  // is still in flight. Released on failure (see catch block below) so a
+  // transient HL hiccup doesn't lock out the next legitimate cycle.
+  const acquired = await tryAcquireDebounce(DEBOUNCE_KEY, 3600);
   if (!acquired) {
     return NextResponse.json({
       ok: true,
@@ -118,15 +102,22 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
     console.error("[dividend-step-1] withdraw failed:", error);
+    // Release the 1h debounce so a retry within the hour isn't blocked
+    // by a transient failure. The audit log entry below is also gated
+    // on success — a failed withdraw must not anchor a "succeeded"
+    // record to 0G.
+    await getRedis()?.del(DEBOUNCE_KEY);
   }
 
-  await appendTradeLog({
-    ts: Date.now(),
-    action: "hl-withdraw",
-    txHash: "",
-    reason: `weekly dividend step 1: HL → Arbitrum (${amount} USDC, ${env})`,
-    amount: String(amount),
-  });
+  if (!error) {
+    await appendTradeLog({
+      ts: Date.now(),
+      action: "hl-withdraw",
+      txHash: "",
+      reason: `weekly dividend step 1: HL → Arbitrum (${amount} USDC, ${env})`,
+      amount: String(amount),
+    });
+  }
 
   await logRun(
     error

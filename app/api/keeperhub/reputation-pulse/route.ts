@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getRedis, pushKeeperhubRun } from "@/lib/redis";
 import { AGENT_ID_DEFAULT, SEPOLIA_REPUTATION_REGISTRY } from "@/lib/ens-constants";
 import { sepoliaPublicClient } from "@/lib/wallets";
+import { verifyKeeperhubWebhook, unauthorized } from "@/lib/cron-auth";
 
 const REPUTATION_ABI = [
   {
@@ -27,16 +28,8 @@ const Body = z.object({
   agentId: z.union([z.number(), z.string()]).optional(),
 });
 
-function checkSecret(req: NextRequest): boolean {
-  const auth = req.headers.get("authorization") ?? "";
-  const expected = `Bearer ${process.env.KEEPERHUB_WEBHOOK_SECRET ?? process.env.INFT_ORACLE_API_KEY ?? ""}`;
-  return expected !== "Bearer " && auth === expected;
-}
-
 export async function POST(req: NextRequest) {
-  if (!checkSecret(req)) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  if (!verifyKeeperhubWebhook(req)) return unauthorized();
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });

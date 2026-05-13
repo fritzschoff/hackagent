@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pushFundingSnapshot, pushKeeperhubRun } from "@/lib/redis";
+import { verifyKeeperhubWebhook, unauthorized } from "@/lib/cron-auth";
 
 export const runtime = "nodejs";
 
@@ -15,19 +16,7 @@ export const runtime = "nodejs";
 /// Bearer auth against KEEPERHUB_WEBHOOK_SECRET so randos can't poison the
 /// off-chain agent's view of the funding rate.
 export async function POST(req: NextRequest) {
-  const secret = process.env.KEEPERHUB_WEBHOOK_SECRET;
-  if (!secret) {
-    return NextResponse.json(
-      { ok: false, error: "secret not configured" },
-      { status: 500 },
-    );
-  }
-  const provided = (req.headers.get("authorization") ?? "").startsWith("Bearer ")
-    ? (req.headers.get("authorization") ?? "").slice(7)
-    : "";
-  if (provided !== secret) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
+  if (!verifyKeeperhubWebhook(req)) return unauthorized();
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const workflowRunId =

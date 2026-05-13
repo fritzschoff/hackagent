@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { pushKeeperhubRun, type KeeperhubRunKind } from "@/lib/redis";
+import { verifyKeeperhubWebhook, unauthorized } from "@/lib/cron-auth";
 
 export const runtime = "nodejs";
 
@@ -19,7 +20,14 @@ function isKind(v: unknown): v is KeeperhubRunKind {
 
 /// KeeperHub workflow → POST here on completion. Body shape:
 ///   { kind, workflowRunId, txHash?, summary? }
+///
+/// Bearer auth against KEEPERHUB_WEBHOOK_SECRET — without it, anyone on
+/// the internet could pollute the dashboard's KH-runs ring buffer with
+/// fake "kill-switch tripped" / "dividend distributed" rows. The buffer
+/// is the public audit surface shareholders read; trusted writers only.
 export async function POST(req: NextRequest) {
+  if (!verifyKeeperhubWebhook(req)) return unauthorized();
+
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   console.log("[keeperhub-webhook]", body);
 
