@@ -14,7 +14,6 @@
 
 const MCP_URL = process.env.KEEPERHUB_MCP_URL ?? "https://app.keeperhub.com/mcp";
 
-const REPUTATION_REGISTRY = "0x477D6FeFCE87B627a7B2215ee62a4E21fc102BbA";
 const PUBLIC_RESOLVER = "0xE99638b40E4Fff0129D56f03b55b6bbC4BBE49b5";
 const ENS_NODE =
   "0x6d81003b2f91af0480ced9f5ab8aec945befadb5342a572c264ec86bcfc00cce";
@@ -28,19 +27,6 @@ const FEEDBACK_COUNT_ABI = JSON.stringify([
     stateMutability: "view",
     inputs: [{ name: "agentId", type: "uint256" }],
     outputs: [{ name: "", type: "uint256" }],
-  },
-]);
-
-const RESOLVER_TEXT_ABI = JSON.stringify([
-  {
-    type: "function",
-    name: "text",
-    stateMutability: "view",
-    inputs: [
-      { name: "node", type: "bytes32" },
-      { name: "key", type: "string" },
-    ],
-    outputs: [{ name: "", type: "string" }],
   },
 ]);
 

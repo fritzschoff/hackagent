@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { hexToBytes, bytesToHex } from "@noble/curves/utils.js";
+import { bytesToHex } from "@noble/curves/utils.js";
 import { keccak_256 } from "@noble/hashes/sha3.js";
 import { secp256k1 } from "@noble/curves/secp256k1.js";
 import {

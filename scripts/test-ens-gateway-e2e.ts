@@ -18,7 +18,6 @@
 import {
   encodeAbiParameters,
   decodeAbiParameters,
-  keccak256,
   createPublicClient,
   http,
   type Address,

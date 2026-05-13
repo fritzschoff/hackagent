@@ -446,7 +446,7 @@ export default function DocsPage() {
             owner. Every public ERC-7857 demo we&apos;ve seen stops at the
             metadata schema. 0G&apos;s own reference verifier (the canonical
             implementation) leaves a literal{" "}
-            <Code>// TODO: verify TEE&apos;s signature</Code> in its
+            <Code>{"// TODO: verify TEE's signature"}</Code> in its
             transfer-validity verifier and deploys with an empty oracle
             counterpart (the{" "}
             <a

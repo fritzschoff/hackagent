@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { createWalletClient, custom, type Address, type Hex } from "viem";
-import { keccak256, toBytes, encodePacked } from "viem";
+import { keccak256, toBytes } from "viem";
 import { sepolia } from "viem/chains";
 
 type Props = {
@@ -57,9 +57,6 @@ export default function RevealPanel({ tokenId, owner, account }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [plaintext, setPlaintext] = useState<string | null>(null);
 
-  const isOwner = account.toLowerCase() === owner.toLowerCase();
-  if (!isOwner) return null;
-
   const handleReveal = useCallback(async () => {
     if (!window.ethereum) {
       setError("no wallet detected");
@@ -111,6 +108,9 @@ export default function RevealPanel({ tokenId, owner, account }: Props) {
       setBusy(false);
     }
   }, [account, tokenId]);
+
+  const isOwner = account.toLowerCase() === owner.toLowerCase();
+  if (!isOwner) return null;
 
   return (
     <div className="card-flat space-y-3">

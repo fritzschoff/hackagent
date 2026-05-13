@@ -33,11 +33,6 @@ const handler = async (req: NextRequest): Promise<NextResponse> => {
   }
 
   const intent = parsed.data;
-  const url = new URL(req.url);
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    `${url.protocol}//${url.host}`;
-
   const quote = await quoteSwap(intent);
 
   const paymentResponseHeader =
