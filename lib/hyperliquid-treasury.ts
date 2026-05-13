@@ -43,8 +43,6 @@ export type HlTreasuryView = {
   owner: Address;
   asset: number;
   usdcBalance: bigint;
-  positionId: Hex;
-  positionOpenedAt: bigint;
   lastHeartbeat: bigint;
   heartbeatTimeout: bigint;
   heartbeatStale: boolean;
@@ -69,8 +67,6 @@ export async function readHlTreasury(): Promise<HlTreasuryView | null> {
       agent,
       owner,
       asset,
-      positionId,
-      positionOpenedAt,
       lastHeartbeat,
       heartbeatTimeout,
       heartbeatStale,
@@ -80,12 +76,6 @@ export async function readHlTreasury(): Promise<HlTreasuryView | null> {
       client.readContract({ address, abi: ABI, functionName: "agent" }),
       client.readContract({ address, abi: ABI, functionName: "owner" }),
       client.readContract({ address, abi: ABI, functionName: "asset" }),
-      client.readContract({ address, abi: ABI, functionName: "positionId" }),
-      client.readContract({
-        address,
-        abi: ABI,
-        functionName: "positionOpenedAt",
-      }),
       client.readContract({
         address,
         abi: ABI,
@@ -103,18 +93,7 @@ export async function readHlTreasury(): Promise<HlTreasuryView | null> {
       }),
       client.readContract({ address, abi: ABI, functionName: "killed" }),
       client.readContract({ address, abi: ABI, functionName: "USDC" }),
-    ])) as [
-      Address,
-      Address,
-      number,
-      Hex,
-      bigint,
-      bigint,
-      bigint,
-      boolean,
-      boolean,
-      Address,
-    ];
+    ])) as [Address, Address, number, bigint, bigint, boolean, boolean, Address];
 
     const [usdcBalance, oraclePx, markPx, hlPositionRaw, marginRaw] =
       (await Promise.all([
@@ -152,8 +131,6 @@ export async function readHlTreasury(): Promise<HlTreasuryView | null> {
       owner,
       asset,
       usdcBalance,
-      positionId,
-      positionOpenedAt,
       lastHeartbeat,
       heartbeatTimeout,
       heartbeatStale,

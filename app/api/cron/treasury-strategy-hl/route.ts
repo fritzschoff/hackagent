@@ -6,7 +6,11 @@ import {
   openPosition,
   closePosition,
 } from "@/lib/hyperliquid-treasury";
-import { decide, type HlAction } from "@/lib/treasury-strategy-hl";
+import {
+  decide,
+  DEFAULT_OPEN_SIZE,
+  type HlAction,
+} from "@/lib/treasury-strategy-hl";
 import { getFundingRate, getAssetIndex } from "@/lib/hyperliquid";
 import { appendTradeLog } from "@/lib/treasury-log";
 
@@ -59,7 +63,8 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const action = decide({ treasury, fundingHourly });
+  const openSize = parseEnvBigInt("HL_OPEN_SIZE", DEFAULT_OPEN_SIZE);
+  const action = decide({ treasury, fundingHourly, openSize });
   const ts = Date.now();
   let txHash: `0x${string}` | null = null;
   let error: string | null = null;
@@ -125,6 +130,17 @@ export async function GET(req: NextRequest) {
     txHash,
     error,
   });
+}
+
+function parseEnvBigInt(envName: string, fallback: bigint): bigint {
+  const raw = process.env[envName];
+  if (!raw) return fallback;
+  try {
+    return BigInt(raw);
+  } catch {
+    console.warn(`[strategy-hl] ${envName}=${raw} is not a valid bigint`);
+    return fallback;
+  }
 }
 
 function summarize(a: HlAction): Record<string, unknown> {

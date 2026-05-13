@@ -2,19 +2,12 @@
 import { decide } from "../lib/treasury-strategy-hl";
 import type { HlTreasuryView } from "../lib/hyperliquid-treasury";
 
-const ZERO_PID =
-  "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`;
-const OPEN_PID =
-  "0xabababababababababababababababababababababababababababababababab" as `0x${string}`;
-
 const baseTreasury: HlTreasuryView = {
   address: "0x0" as `0x${string}`,
   agent: "0x0" as `0x${string}`,
   owner: "0x0" as `0x${string}`,
   asset: 4,
   usdcBalance: 1_000_000_000n,
-  positionId: ZERO_PID,
-  positionOpenedAt: 0n,
   lastHeartbeat: 0n,
   heartbeatTimeout: 21600n,
   heartbeatStale: false,
@@ -47,7 +40,6 @@ const cases: [HlTreasuryView, number | null, string][] = [
   [
     {
       ...baseTreasury,
-      positionId: OPEN_PID,
       hlPosition: { ...baseTreasury.hlPosition, szi: -100n },
     },
     1e-4,
@@ -56,7 +48,6 @@ const cases: [HlTreasuryView, number | null, string][] = [
   [
     {
       ...baseTreasury,
-      positionId: OPEN_PID,
       hlPosition: { ...baseTreasury.hlPosition, szi: -100n },
     },
     -1e-4,
@@ -65,25 +56,15 @@ const cases: [HlTreasuryView, number | null, string][] = [
   [
     {
       ...baseTreasury,
-      positionId: OPEN_PID,
       hlPosition: { ...baseTreasury.hlPosition, szi: -100n },
     },
     1e-6,
     "close:below-close-threshold",
   ],
-  [
-    {
-      ...baseTreasury,
-      positionId: OPEN_PID,
-      hlPosition: { ...baseTreasury.hlPosition, szi: 0n },
-    },
-    1e-4,
-    "skip:state-divergence",
-  ],
 ];
 
 for (const [treasury, fundingHourly, label] of cases) {
-  const a = decide({ treasury, fundingHourly });
+  const a = decide({ treasury, fundingHourly, openSize: 100n });
   const side =
     a.kind === "open" ? a.side : a.kind === "close" ? "(close)" : "";
   console.log(

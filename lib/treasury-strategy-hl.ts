@@ -14,14 +14,12 @@ export const CLOSE_THRESHOLD_HOURLY = 2.5e-5; // ~22% APY
 
 /// Default position size when opening — in HL wire units (10^szDecimals
 /// per asset unit). For ETH testnet (szDecimals=4 at time of writing)
-/// 100 = 0.01 ETH. Override via env HL_OPEN_SIZE for M2 tuning.
-const DEFAULT_OPEN_SIZE: bigint = 100n;
+/// 100 = 0.01 ETH. The cron caller reads HL_OPEN_SIZE from env and
+/// passes it in via HlStrategyInput.
+export const DEFAULT_OPEN_SIZE: bigint = 100n;
 
 /// Slippage allowed on IOC limit price, in bps of mark.
 const SLIPPAGE_BPS = 50n;
-
-const ZERO_POSITION_ID =
-  "0x0000000000000000000000000000000000000000000000000000000000000000";
 
 const TIF_IOC = 3;
 
@@ -44,13 +42,17 @@ export type HlStrategyInput = {
   /// Funding rate per hour as a float. Caller pulls this from HL's
   /// metaAndAssetCtxs REST endpoint (see lib/hyperliquid.ts).
   fundingHourly: number | null;
+  /// Size to use when opening a new position (HL wire units). The
+  /// strategy itself stays pure — callers (the cron) read env and pass
+  /// the value in. Defaults to DEFAULT_OPEN_SIZE if omitted.
+  openSize?: bigint;
 };
 
 /// Pure decision function for the HL-native strategy. Same shape as
 /// treasury-strategy.decide but parameterised for HL primitives:
 /// account-level margin, asset-indexed position, hourly funding.
 export function decide(input: HlStrategyInput): HlAction {
-  const { treasury, fundingHourly } = input;
+  const { treasury, fundingHourly, openSize = DEFAULT_OPEN_SIZE } = input;
 
   if (treasury.killed) {
     return { kind: "skip", reason: "treasury killed" };
@@ -69,12 +71,11 @@ export function decide(input: HlStrategyInput): HlAction {
   }
 
   const absFunding = Math.abs(fundingHourly);
-  const synthPositionOpen = treasury.positionId !== ZERO_POSITION_ID;
   const hlSize = treasury.hlPosition.szi;
   const isShort = hlSize < 0n;
   const isLong = hlSize > 0n;
 
-  if (!synthPositionOpen && hlSize === 0n) {
+  if (hlSize === 0n) {
     if (absFunding < OPEN_THRESHOLD_HOURLY) {
       return {
         kind: "hold",
@@ -84,27 +85,15 @@ export function decide(input: HlStrategyInput): HlAction {
     // Positive funding ⇒ longs pay shorts ⇒ open short.
     const isBuy = fundingHourly < 0;
     const side: "long" | "short" = isBuy ? "long" : "short";
-    const size = parseEnvBigInt("HL_OPEN_SIZE", DEFAULT_OPEN_SIZE);
     const limitPx = applySlippage(treasury.markPx, isBuy);
     return {
       kind: "open",
       side,
       isBuy,
-      size,
+      size: openSize,
       limitPx,
       tif: TIF_IOC,
       reason: `flat · funding=${fundingHourly} crosses OPEN_THRESHOLD · ${side}`,
-    };
-  }
-
-  // We expect synthetic state to match HL state. If they diverge
-  // (synthetic open but HL flat, or vice versa), prefer HL — close
-  // synthetically by returning a "close" so the cron can sync.
-  if (synthPositionOpen && hlSize === 0n) {
-    return {
-      kind: "skip",
-      reason:
-        "synthetic open but HL flat — operator should sync state before next tick",
     };
   }
 
@@ -138,14 +127,4 @@ export function decide(input: HlStrategyInput): HlAction {
 function applySlippage(markPx: bigint, isBuy: boolean): bigint {
   const delta = (markPx * SLIPPAGE_BPS) / 10_000n;
   return isBuy ? markPx + delta : markPx - delta;
-}
-
-function parseEnvBigInt(envName: string, fallback: bigint): bigint {
-  const raw = process.env[envName];
-  if (!raw) return fallback;
-  try {
-    return BigInt(raw);
-  } catch {
-    return fallback;
-  }
 }

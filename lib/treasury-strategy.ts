@@ -125,6 +125,12 @@ function parseRate(s: string): bigint {
   try {
     return BigInt(s);
   } catch {
+    // A poisoned funding snapshot (non-numeric string from the
+    // funding-poll workflow) must not silently collapse to 0 — it would
+    // masquerade as "rate below threshold" and look like normal holds.
+    console.warn(
+      `[treasury-strategy] parseRate failed for ${JSON.stringify(s)}; falling back to 0`,
+    );
     return 0n;
   }
 }

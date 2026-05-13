@@ -47,26 +47,22 @@ contract HyperliquidTreasury is ReentrancyGuard {
     uint64 public lastHeartbeat;
     bool public killed;
 
-    /// Synthetic position id. HL is asset-indexed, not position-indexed,
-    /// so we hash (asset, openedAt, side, size) to give the agent a
-    /// stable handle. `bytes32(0)` means flat. Source of truth for the
-    /// actual size is always `L1Read.position(this, asset)` — `szi`
-    /// there can lag the synthetic state by one HyperEVM block.
-    bytes32 public positionId;
-    uint64 public positionOpenedAt;
+    // Note: no synthetic position state. HL is the source of truth via
+    // L1Read.position(this, asset); maintaining a parallel positionId
+    // inside the contract created divergence opportunities on every
+    // partial fill (audit M1). The strategy + dashboard read HL directly.
 
     event Funded(address indexed from, uint256 amount);
     event BridgedToPerp(uint64 amount);
     event BridgedToSpot(uint64 amount);
-    event PositionOpened(
-        bytes32 indexed positionId,
+    event PositionOpenSubmitted(
         bool isBuy,
         uint64 limitPx,
         uint64 size,
         uint8 tif
     );
-    event PositionClosed(bytes32 indexed positionId, uint64 limitPx);
-    event CloseOrderSubmitFailed(bytes32 indexed positionId);
+    event PositionCloseSubmitted(uint64 limitPx, uint64 sizeAtSubmit);
+    event CloseOrderSubmitFailed();
     event PerpSweepInitiated(uint64 amount);
     event PerpSweepFailed();
     event SpotSwept(uint256 amount);
@@ -151,22 +147,15 @@ contract HyperliquidTreasury is ReentrancyGuard {
 
     // ─── trading ─────────────────────────────────────────────────────────
 
-    /// Submit a limit order to HL. Returns the synthetic positionId the
-    /// agent and dashboard can use as a handle. Does NOT block on HL fill
-    /// — order may rest or be rejected; check L1Read.position() to confirm.
+    /// Submit a limit order to HL. Does NOT block on HL fill — order may
+    /// rest or be rejected; the caller (strategy + dashboard) reads
+    /// L1Read.position() to confirm what actually opened.
     function openPosition(
         bool isBuy,
         uint64 limitPx,
         uint64 size,
         uint8 tif
-    )
-        external
-        onlyAgent
-        notKilled
-        nonReentrant
-        returns (bytes32)
-    {
-        require(positionId == bytes32(0), "position open");
+    ) external onlyAgent notKilled nonReentrant {
         require(size > 0 && limitPx > 0, "zero params");
         require(
             tif == HyperliquidActions.TIF_GTC ||
@@ -174,6 +163,11 @@ contract HyperliquidTreasury is ReentrancyGuard {
                 tif == HyperliquidActions.TIF_ALO,
             "bad tif"
         );
+        // No on-contract double-open guard: HL is the source of truth.
+        // The strategy is the only legitimate caller and it reads
+        // L1Read.position before deciding. A theoretical same-EVM-block
+        // double-fire would be rejected at the HL margin level on the
+        // second order.
         bytes memory action = HyperliquidActions.encodeLimitOrder(
             asset,
             isBuy,
@@ -184,28 +178,23 @@ contract HyperliquidTreasury is ReentrancyGuard {
             0
         );
         HyperliquidActions.send(action);
-
-        uint64 nowTs = uint64(block.timestamp);
-        bytes32 pid = keccak256(
-            abi.encode(asset, nowTs, isBuy, size, limitPx)
-        );
-        positionId = pid;
-        positionOpenedAt = nowTs;
-        emit PositionOpened(pid, isBuy, limitPx, size, tif);
+        emit PositionOpenSubmitted(isBuy, limitPx, size, tif);
         _heartbeat();
-        return pid;
     }
 
-    /// Close the open position via a reduce-only IOC. Reads current HL
-    /// size from the precompile to determine direction + size, so this
-    /// works even if the synthetic state lags a partial fill.
+    /// Submit a reduce-only IOC to close the agent's HL position.
+    /// Direction + size come from L1Read.position — that is the only
+    /// source of truth for what's actually open. If the precompile says
+    /// flat, the call reverts; otherwise we submit a close of the full
+    /// reported size. HL processes asynchronously so the order may
+    /// partial-fill or get rejected — the strategy reads L1Read on the
+    /// next tick to know.
     function closePosition(
         uint64 limitPx
-    ) external onlyAgent nonReentrant returns (bytes32) {
-        require(positionId != bytes32(0), "no position");
+    ) external onlyAgent nonReentrant {
         require(limitPx > 0, "zero px");
         L1Read.Position memory pos = L1Read.position(address(this), asset);
-        require(pos.szi != 0, "HL position empty");
+        require(pos.szi != 0, "no position");
         bool isBuy = pos.szi < 0; // buy to close short, sell to close long
         uint64 size = pos.szi < 0
             ? uint64(uint256(int256(-pos.szi)))
@@ -220,12 +209,8 @@ contract HyperliquidTreasury is ReentrancyGuard {
             0
         );
         HyperliquidActions.send(action);
-        bytes32 pid = positionId;
-        positionId = bytes32(0);
-        positionOpenedAt = 0;
-        emit PositionClosed(pid, limitPx);
+        emit PositionCloseSubmitted(limitPx, size);
         _heartbeat();
-        return pid;
     }
 
     // ─── revenue ─────────────────────────────────────────────────────────
@@ -277,7 +262,7 @@ contract HyperliquidTreasury is ReentrancyGuard {
         bool isOwner = msg.sender == owner;
         require(isOwner || heartbeatStale(), "not authorized");
 
-        if (positionId != bytes32(0) && closeLimitPx > 0) {
+        if (closeLimitPx > 0) {
             // Both the precompile read AND the order submit are wrapped
             // so a paused HL / out-of-liquidity venue / unstable precompile
             // cannot wedge the kill. If the close order can't go in, the
@@ -301,11 +286,9 @@ contract HyperliquidTreasury is ReentrancyGuard {
                 try this._sendActionExt(closeAction) {
                     // close submitted
                 } catch {
-                    emit CloseOrderSubmitFailed(positionId);
+                    emit CloseOrderSubmitFailed();
                 }
             }
-            positionId = bytes32(0);
-            positionOpenedAt = 0;
         }
 
         // Best-effort sweep of the perp ledger → spot ledger. HL processes

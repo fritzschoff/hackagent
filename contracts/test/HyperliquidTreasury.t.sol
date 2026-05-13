@@ -106,7 +106,7 @@ contract HyperliquidTreasuryTest is Test {
 
     // ─── open / close ────────────────────────────────────────────────────
 
-    function test_openPosition_sendsLimitOrderAndStoresPositionId() public {
+    function test_openPosition_sendsLimitOrder() public {
         bytes memory expected = HyperliquidActions.encodeLimitOrder(
             ETH_PERP,
             false,
@@ -121,33 +121,12 @@ contract HyperliquidTreasuryTest is Test {
             abi.encodeWithSelector(ICoreWriter.sendRawAction.selector, expected)
         );
         vm.prank(agent);
-        bytes32 pid = treasury.openPosition(
-            false,
-            uint64(228_000_000),
-            uint64(10_000),
-            HyperliquidActions.TIF_IOC
-        );
-        assertTrue(pid != bytes32(0));
-        assertEq(treasury.positionId(), pid);
-        assertEq(treasury.positionOpenedAt(), uint64(block.timestamp));
-    }
-
-    function test_openPosition_revertsIfAlreadyOpen() public {
-        vm.startPrank(agent);
         treasury.openPosition(
             false,
             uint64(228_000_000),
             uint64(10_000),
             HyperliquidActions.TIF_IOC
         );
-        vm.expectRevert(bytes("position open"));
-        treasury.openPosition(
-            true,
-            uint64(228_000_000),
-            uint64(10_000),
-            HyperliquidActions.TIF_IOC
-        );
-        vm.stopPrank();
     }
 
     function test_openPosition_rejectsBadTif() public {
@@ -162,14 +141,6 @@ contract HyperliquidTreasuryTest is Test {
     }
 
     function test_closePosition_readsHLAndSendsReduceOnly() public {
-        // First open a synthetic short.
-        vm.prank(agent);
-        treasury.openPosition(
-            false,
-            uint64(228_000_000),
-            uint64(10_000),
-            HyperliquidActions.TIF_IOC
-        );
         // HL says we're short 10_000 (szDecimals scale).
         L1Read.Position memory pos = L1Read.Position({
             szi: -int64(10_000),
@@ -199,9 +170,6 @@ contract HyperliquidTreasuryTest is Test {
         );
         vm.prank(agent);
         treasury.closePosition(uint64(229_000_000));
-        // Synthetic state cleared.
-        assertEq(treasury.positionId(), bytes32(0));
-        assertEq(treasury.positionOpenedAt(), 0);
     }
 
     function test_closePosition_revertsIfNoPosition() public {
@@ -258,15 +226,7 @@ contract HyperliquidTreasuryTest is Test {
     }
 
     function test_emergencyExit_anyoneWhenStale_closesAndDrains() public {
-        // Open a synthetic position so the exit closes it.
-        vm.prank(agent);
-        treasury.openPosition(
-            false,
-            uint64(228_000_000),
-            uint64(10_000),
-            HyperliquidActions.TIF_IOC
-        );
-        // HL position non-zero.
+        // HL position non-zero — exit must read this and submit a close.
         L1Read.Position memory pos = L1Read.Position({
             szi: -int64(10_000),
             entryNtl: 22_800_000,
@@ -298,27 +258,20 @@ contract HyperliquidTreasuryTest is Test {
         vm.prank(alice);
         treasury.emergencyExit(uint64(230_000_000), "agent dead");
         assertTrue(treasury.killed());
-        assertEq(treasury.positionId(), bytes32(0));
         assertEq(usdc.balanceOf(splitter), 1_000_000_000);
     }
 
     function test_emergencyExit_killsEvenIfPrecompileReverts() public {
-        // Open a position so the exit thinks it has work.
-        vm.prank(agent);
-        treasury.openPosition(
-            false,
-            uint64(228_000_000),
-            uint64(10_000),
-            HyperliquidActions.TIF_IOC
-        );
-        // Now break the precompile.
+        // Break the position precompile.
         vm.mockCallRevert(
             L1Read.POSITION2,
             abi.encode(address(treasury), ETH_PERP),
             "precompile down"
         );
+        // Pass a non-zero closeLimitPx so the close path (and the failing
+        // precompile read) is actually exercised.
         vm.prank(owner);
-        treasury.emergencyExit(uint64(0), "owner");
+        treasury.emergencyExit(uint64(230_000_000), "owner");
         // Still killed + drained, even though we couldn't read the HL state.
         assertTrue(treasury.killed());
         assertEq(usdc.balanceOf(splitter), 1_000_000_000);
@@ -327,14 +280,6 @@ contract HyperliquidTreasuryTest is Test {
     /// Even if HyperliquidActions.send (i.e. the CoreWriter call) reverts
     /// — HL paused, no liquidity, gas issue — the kill must still complete.
     function test_emergencyExit_survivesCoreWriterRevert() public {
-        // Open a position so the close path is exercised.
-        vm.prank(agent);
-        treasury.openPosition(
-            false,
-            uint64(228_000_000),
-            uint64(10_000),
-            HyperliquidActions.TIF_IOC
-        );
         // HL position non-zero so the read passes and we attempt the close.
         L1Read.Position memory pos = L1Read.Position({
             szi: -int64(10_000),
@@ -361,7 +306,6 @@ contract HyperliquidTreasuryTest is Test {
 
         // Kill + drain succeeded despite the order-submit revert.
         assertTrue(treasury.killed());
-        assertEq(treasury.positionId(), bytes32(0));
         assertEq(usdc.balanceOf(splitter), 1_000_000_000);
     }
 
