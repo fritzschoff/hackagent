@@ -107,8 +107,11 @@ contract TradingTreasury is ReentrancyGuard {
     // ─── funding ────────────────────────────────────────────────────────
 
     /// Pull USDC into the treasury. Caller (typically the founder or the
-    /// future treasury-aware SharesSale) must approve first.
-    function fund(uint256 amount) external {
+    /// future treasury-aware SharesSale) must approve first. Blocked
+    /// once the treasury is killed — funds would be trapped until
+    /// someone re-fired emergencyExit, which is more footgun than
+    /// feature. Deploy a fresh treasury for the next strategy.
+    function fund(uint256 amount) external notKilled {
         require(amount > 0, "zero");
         USDC.safeTransferFrom(msg.sender, address(this), amount);
         emit Funded(msg.sender, amount);

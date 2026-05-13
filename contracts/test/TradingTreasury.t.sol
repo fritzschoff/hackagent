@@ -235,6 +235,21 @@ contract TradingTreasuryTest is Test {
         assertEq(usdc.balanceOf(address(splitter)), 500_000_000);
     }
 
+    /// fund() after kill must revert — otherwise USDC sent into a killed
+    /// contract is trapped (the kill set killed=true; future emergencyExit
+    /// would succeed because emergencyExit has no notKilled modifier, but
+    /// that's a footgun for accidental top-ups).
+    function test_fund_blockedAfterKill() public {
+        vm.prank(owner);
+        treasury.kill();
+        usdc.mint(alice, 1_000_000);
+        vm.startPrank(alice);
+        usdc.approve(address(treasury), 1_000_000);
+        vm.expectRevert(bytes("killed"));
+        treasury.fund(1_000_000);
+        vm.stopPrank();
+    }
+
     function test_killed_blocksNewPositions() public {
         vm.prank(owner);
         treasury.kill();

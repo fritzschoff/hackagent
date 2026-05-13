@@ -67,6 +67,9 @@ contract HyperliquidTreasury is ReentrancyGuard {
     );
     event PositionClosed(bytes32 indexed positionId, uint64 limitPx);
     event CloseOrderSubmitFailed(bytes32 indexed positionId);
+    event PerpSweepInitiated(uint64 amount);
+    event PerpSweepFailed();
+    event SpotSwept(uint256 amount);
     event RevenueDistributed(uint256 amount);
     event Heartbeat(uint64 timestamp);
     event EmergencyExited(address indexed by, uint256 returned, string reason);
@@ -110,8 +113,10 @@ contract HyperliquidTreasury is ReentrancyGuard {
 
     /// Pull USDC into the treasury from `msg.sender`. Founder seeds the
     /// strategy this way; the future cross-chain bridge route from
-    /// AgentShares on Base into HyperEVM USDC also lands here.
-    function fund(uint256 amount) external {
+    /// AgentShares on Base into HyperEVM USDC also lands here. Blocked
+    /// once killed so funds aren't trapped in a dead contract — deploy
+    /// a fresh treasury for the next strategy instead.
+    function fund(uint256 amount) external notKilled {
         require(amount > 0, "zero");
         USDC.safeTransferFrom(msg.sender, address(this), amount);
         emit Funded(msg.sender, amount);
@@ -303,6 +308,24 @@ contract HyperliquidTreasury is ReentrancyGuard {
             positionOpenedAt = 0;
         }
 
+        // Best-effort sweep of the perp ledger → spot ledger. HL processes
+        // the usdClassTransfer action asynchronously, so the funds DON'T
+        // arrive in this tx. After HL settles, anyone can call sweepSpot()
+        // to forward them to the splitter. The kill itself never blocks
+        // on this — if the read or the submit fails, we move on.
+        (uint64 perpAvail, bool perpReadOk) = _tryReadWithdrawable();
+        if (perpReadOk && perpAvail > 0) {
+            bytes memory moveAction = HyperliquidActions.encodeUsdClassTransfer(
+                perpAvail,
+                false // perp → spot
+            );
+            try this._sendActionExt(moveAction) {
+                emit PerpSweepInitiated(perpAvail);
+            } catch {
+                emit PerpSweepFailed();
+            }
+        }
+
         killed = true;
         emit Killed();
 
@@ -312,6 +335,20 @@ contract HyperliquidTreasury is ReentrancyGuard {
             emit RevenueDistributed(bal);
         }
         emit EmergencyExited(msg.sender, bal, reason);
+    }
+
+    /// Permissionless drain of any USDC that arrived on the spot ledger
+    /// AFTER `emergencyExit` killed the contract. The perp → spot sweep
+    /// initiated by `emergencyExit` processes asynchronously on HL; the
+    /// USDC lands one HyperCore block later. Anyone can call this to
+    /// finish the sweep without waiting for the operator (who's
+    /// presumably the thing that failed in the first place).
+    function sweepSpot() external nonReentrant {
+        require(killed, "not killed");
+        uint256 bal = USDC.balanceOf(address(this));
+        require(bal > 0, "nothing to sweep");
+        USDC.safeTransfer(splitter, bal);
+        emit SpotSwept(bal);
     }
 
     /// Wrap L1Read.position in a try/catch so emergencyExit cannot be
@@ -332,6 +369,20 @@ contract HyperliquidTreasury is ReentrancyGuard {
     /// External wrapper purely to make L1Read.position try/catch-able.
     function _readPositionExt() external view returns (L1Read.Position memory) {
         return L1Read.position(address(this), asset);
+    }
+
+    /// Wrap L1Read.withdrawable in try/catch so emergencyExit cannot be
+    /// blocked by a precompile revert.
+    function _tryReadWithdrawable() internal view returns (uint64, bool) {
+        try this._readWithdrawableExt() returns (uint64 w) {
+            return (w, true);
+        } catch {
+            return (0, false);
+        }
+    }
+
+    function _readWithdrawableExt() external view returns (uint64) {
+        return L1Read.withdrawable(address(this));
     }
 
     /// External wrapper purely to make HyperliquidActions.send try/catch-able.

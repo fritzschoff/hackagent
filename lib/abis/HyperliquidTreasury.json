@@ -80,6 +80,19 @@
   },
   {
     "type": "function",
+    "name": "_readWithdrawableExt",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "_sendActionExt",
     "inputs": [
       {
@@ -486,6 +499,13 @@
     "stateMutability": "view"
   },
   {
+    "type": "function",
+    "name": "sweepSpot",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
     "type": "event",
     "name": "AgentRotated",
     "inputs": [
@@ -621,6 +641,25 @@
   },
   {
     "type": "event",
+    "name": "PerpSweepFailed",
+    "inputs": [],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PerpSweepInitiated",
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "PositionClosed",
     "inputs": [
       {
@@ -678,6 +717,19 @@
   {
     "type": "event",
     "name": "RevenueDistributed",
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SpotSwept",
     "inputs": [
       {
         "name": "amount",

@@ -365,6 +365,95 @@ contract HyperliquidTreasuryTest is Test {
         assertEq(usdc.balanceOf(splitter), 1_000_000_000);
     }
 
+    function test_fund_blockedAfterKill() public {
+        vm.prank(owner);
+        treasury.kill();
+        usdc.mint(alice, 100);
+        vm.startPrank(alice);
+        usdc.approve(address(treasury), 100);
+        vm.expectRevert(bytes("killed"));
+        treasury.fund(100);
+        vm.stopPrank();
+    }
+
+    /// emergencyExit must call usdClassTransfer(perpAvail, false) when
+    /// the withdrawable precompile reports non-zero perp balance, so
+    /// shareholders can eventually claim the perp-side margin.
+    function test_emergencyExit_initiatesPerpSweep() public {
+        // Mock the withdrawable precompile to return 250M (250 USDC).
+        vm.mockCall(
+            L1Read.WITHDRAWABLE,
+            abi.encode(address(treasury)),
+            abi.encode(uint64(250_000_000))
+        );
+        bytes memory expected = HyperliquidActions.encodeUsdClassTransfer(
+            uint64(250_000_000),
+            false
+        );
+        vm.expectCall(
+            HyperliquidActions.CORE_WRITER,
+            abi.encodeWithSelector(ICoreWriter.sendRawAction.selector, expected)
+        );
+        vm.prank(owner);
+        treasury.emergencyExit(uint64(0), "owner with perp balance");
+        assertTrue(treasury.killed());
+    }
+
+    /// If the withdrawable precompile reverts, emergencyExit must still
+    /// complete (the kill is the load-bearing promise; the perp sweep is
+    /// best-effort).
+    function test_emergencyExit_perpSweepFailureDoesNotBlockKill() public {
+        vm.mockCallRevert(
+            L1Read.WITHDRAWABLE,
+            abi.encode(address(treasury)),
+            "precompile down"
+        );
+        vm.prank(owner);
+        treasury.emergencyExit(uint64(0), "withdrawable broken");
+        assertTrue(treasury.killed());
+        // On-treasury USDC still drained.
+        assertEq(usdc.balanceOf(splitter), 1_000_000_000);
+    }
+
+    /// After kill, anyone can call sweepSpot to drain USDC that landed
+    /// post-mortem (e.g. the perp→spot transfer initiated by
+    /// emergencyExit settles in the next HL block).
+    function test_sweepSpot_anyoneCanCallAfterKill() public {
+        vm.prank(owner);
+        treasury.kill();
+        // Simulate fresh USDC arriving on the treasury's spot ledger
+        // AFTER kill (e.g. the perp→spot transfer settling next block).
+        // Mint on top of setUp's 1B so we can confirm the sweep covers
+        // both prior balance and the new arrival.
+        uint256 priorTreasuryBalance = usdc.balanceOf(address(treasury));
+        usdc.mint(address(treasury), 750_000_000);
+        uint256 splitterBefore = usdc.balanceOf(splitter);
+        vm.prank(alice);
+        treasury.sweepSpot();
+        assertEq(
+            usdc.balanceOf(splitter),
+            splitterBefore + priorTreasuryBalance + 750_000_000
+        );
+        assertEq(usdc.balanceOf(address(treasury)), 0);
+    }
+
+    function test_sweepSpot_blockedWhileAlive() public {
+        vm.expectRevert(bytes("not killed"));
+        treasury.sweepSpot();
+    }
+
+    function test_sweepSpot_revertsOnEmpty() public {
+        vm.prank(owner);
+        treasury.kill();
+        // Treasury has 1B USDC from setUp; drain it via owner emergencyExit
+        // path is awkward — just call sweepSpot once, then again.
+        vm.prank(alice);
+        treasury.sweepSpot();
+        vm.expectRevert(bytes("nothing to sweep"));
+        vm.prank(alice);
+        treasury.sweepSpot();
+    }
+
     function test_killed_blocksNewPositions() public {
         vm.prank(owner);
         treasury.kill();
