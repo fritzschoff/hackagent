@@ -771,6 +771,84 @@ export function buildTreasuryDividendDistribute(args: {
   };
 }
 
+// ─── DividendStep1Withdraw ────────────────────────────────────────────────────
+
+/**
+ * Weekly Schedule (Sundays 00:00 UTC) — first leg of the cross-chain
+ * dividend cycle: pull HL balance back to Arbitrum.
+ *
+ * Calls /api/keeperhub/dividend-step-1-withdraw with bearer auth. The
+ * endpoint reads the agent's HL clearinghouse state via lib/hyperliquid,
+ * signs a withdraw3 action with AGENT_PK, and POSTs it to HL's exchange
+ * endpoint. HL Bridge2 settles to Arbitrum in 3–4 minutes.
+ *
+ * D2 (Arbitrum → Base) and D3 (Splitter.distribute) are separate
+ * workflows wired after the bridge choice is made. For D1 funds rest on
+ * Arbitrum and the operator bridges manually for 1–2 cycles.
+ */
+export function buildDividendStep1Withdraw(args: {
+  appUrl: string;
+  webhookSecret: string;
+}): WorkflowSpec {
+  const nodes = [
+    {
+      id: "trigger-schedule",
+      type: "trigger",
+      position: { x: 0, y: 0 },
+      data: {
+        type: "trigger",
+        label: "Weekly Schedule",
+        status: "idle",
+        config: {
+          triggerType: "Schedule",
+          scheduleCron: "0 0 * * 0",
+          scheduleTimezone: "UTC",
+        },
+      },
+    },
+    {
+      id: "webhook-hl-withdraw",
+      type: "action",
+      position: { x: 320, y: 0 },
+      data: {
+        type: "action",
+        label: "POST dividend-step-1-withdraw",
+        status: "idle",
+        config: {
+          actionType: "webhook/send-webhook",
+          webhookUrl: `${args.appUrl}/api/keeperhub/dividend-step-1-withdraw`,
+          webhookMethod: "POST",
+          webhookHeaders: JSON.stringify({
+            Authorization: `Bearer ${args.webhookSecret}`,
+            "Content-Type": "application/json",
+          }),
+          webhookPayload: JSON.stringify({
+            triggeredAt:
+              "{{@trigger-schedule:Weekly Schedule.data.triggeredAt}}",
+          }),
+        },
+      },
+    },
+  ];
+
+  const edges = [
+    {
+      id: "e1",
+      type: "animated",
+      source: "trigger-schedule",
+      target: "webhook-hl-withdraw",
+    },
+  ];
+
+  return {
+    name: "DividendStep1Withdraw",
+    description:
+      "Schedule-triggered (weekly, Sundays 00:00 UTC). POSTs to /api/keeperhub/dividend-step-1-withdraw with bearer auth. The endpoint reads the agent's HL clearinghouseState, computes withdrawable - HL_OPERATING_RESERVE, signs a withdraw3 action via AGENT_PK, and submits it to HL's exchange endpoint. HL Bridge2 validators settle to Arbitrum in 3–4 min. First leg of the cross-chain dividend cycle; D2 (Arbitrum → Base) and D3 (Splitter.distribute) follow once the bridge choice is made.",
+    nodes,
+    edges,
+  };
+}
+
 // ─── generic scheduled GET trigger ────────────────────────────────────────────
 
 /**

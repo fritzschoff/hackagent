@@ -10,7 +10,13 @@ import { getRedis } from "@/lib/redis";
 /// what.
 export type TradeLogEntry = {
   ts: number;
-  action: "open" | "close" | "distribute" | "emergencyExit" | "heartbeat";
+  action:
+    | "open"
+    | "close"
+    | "distribute"
+    | "emergencyExit"
+    | "heartbeat"
+    | "hl-withdraw";
   txHash: string;
   reason: string;
   /// Pre-action treasury snapshot, minimal subset.

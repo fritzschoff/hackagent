@@ -246,6 +246,7 @@ export default async function KeeperHubPage() {
     "kill-switch": null,
     "funding-poll": null,
     "dividend-distribute": null,
+    "dividend-step-1": null,
   };
   for (const run of allRuns) {
     if (lastRunByKind[run.kind] === null) lastRunByKind[run.kind] = run.ts;
