@@ -72,6 +72,45 @@ contract HyperliquidTreasuryTest is Test {
 
     // ─── routing ─────────────────────────────────────────────────────────
 
+    function test_depositToSpot_transfersToSystemAddress() public {
+        // The treasury starts with 1B USDC (from setUp). depositToSpot
+        // 600M of it should land at the USDC system address.
+        address sys = treasury.USDC_SYSTEM_ADDRESS();
+        uint256 balanceBefore = usdc.balanceOf(sys);
+        vm.prank(agent);
+        treasury.depositToSpot(600_000_000);
+        assertEq(
+            usdc.balanceOf(sys) - balanceBefore,
+            600_000_000,
+            "system address balance increased"
+        );
+        assertEq(
+            usdc.balanceOf(address(treasury)),
+            400_000_000,
+            "treasury debited"
+        );
+    }
+
+    function test_depositToSpot_onlyAgent() public {
+        vm.expectRevert(bytes("not agent"));
+        vm.prank(alice);
+        treasury.depositToSpot(1);
+    }
+
+    function test_depositToSpot_blockedAfterKill() public {
+        vm.prank(owner);
+        treasury.kill();
+        vm.expectRevert(bytes("killed"));
+        vm.prank(agent);
+        treasury.depositToSpot(1);
+    }
+
+    function test_depositToSpot_rejectsZero() public {
+        vm.expectRevert(bytes("zero"));
+        vm.prank(agent);
+        treasury.depositToSpot(0);
+    }
+
     function test_moveToPerp_sendsCorrectAction() public {
         bytes memory expected = HyperliquidActions.encodeUsdClassTransfer(
             500_000_000,

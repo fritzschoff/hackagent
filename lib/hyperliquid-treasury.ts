@@ -179,6 +179,10 @@ export function pingHeartbeat(): Promise<Hex> {
   return write("heartbeat", []);
 }
 
+export function depositToSpot(amount: bigint): Promise<Hex> {
+  return write("depositToSpot", [amount]);
+}
+
 export function moveToPerp(amount: bigint): Promise<Hex> {
   return write("moveToPerp", [amount]);
 }

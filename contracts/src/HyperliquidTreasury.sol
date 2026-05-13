@@ -16,10 +16,13 @@ import {HyperliquidActions} from "./HyperliquidActions.sol";
 ///     account at 0xTREASURY. Orders submitted via CoreWriter are
 ///     attributed to it; positions/balances are read back via L1Read
 ///     precompiles.
-///   - USDC custody assumes HyperEVM-USDC ≡ HL-spot-USDC (the standard
-///     HL mapping). Treasury holds the ERC-20 on HyperEVM; moving
-///     between the spot and perp ledgers happens via
-///     `usdClassTransfer` (action 7).
+///   - USDC ledgers are SEPARATE: the HyperEVM ERC-20 (native USDC
+///     at 0xb883…630f mainnet) is a different ledger from the HL spot
+///     account. To move ERC-20 → spot, plain `transfer()` to the
+///     **system address** `0x20…00 || tokenIndexBE` (USDC = index 0
+///     → `0x2000…0000`). To move spot → perp, CoreWriter
+///     `usdClassTransfer` (action 7). The treasury does ERC-20 → spot
+///     in `depositToSpot`, spot ↔ perp in `moveToPerp` / `moveToSpot`.
 ///   - Single asset per treasury for M2 (the strategy still uses one
 ///     pair). `asset` is set at deploy and immutable.
 ///
@@ -35,8 +38,16 @@ contract HyperliquidTreasury is ReentrancyGuard {
     IERC20 public immutable USDC;
     address public immutable splitter;
 
-    /// HL perp asset index (e.g. 4 = ETH on testnet at time of writing).
+    /// HL perp asset index (e.g. 1 = ETH on mainnet at time of writing).
     uint32 public immutable asset;
+
+    /// System address for USDC token index 0. Plain ERC-20 `transfer()`
+    /// to this address bridges balance from HyperEVM → the contract's
+    /// HyperCore spot account. The reverse path is the `spotSend` L1
+    /// action (not yet wired — D1 dividend cycle uses off-chain
+    /// `withdraw3` instead).
+    address public constant USDC_SYSTEM_ADDRESS =
+        0x2000000000000000000000000000000000000000;
 
     address public agent;
     address public owner;
@@ -53,6 +64,7 @@ contract HyperliquidTreasury is ReentrancyGuard {
     // partial fill (audit M1). The strategy + dashboard read HL directly.
 
     event Funded(address indexed from, uint256 amount);
+    event BridgedErc20ToSpot(uint256 amount);
     event BridgedToPerp(uint64 amount);
     event BridgedToSpot(uint64 amount);
     event PositionOpenSubmitted(
@@ -118,12 +130,26 @@ contract HyperliquidTreasury is ReentrancyGuard {
         emit Funded(msg.sender, amount);
     }
 
+    // ─── HyperEVM → HyperCore spot ───────────────────────────────────────
+
+    /// Move USDC from the treasury's HyperEVM ERC-20 balance into the
+    /// treasury's HyperCore spot account. The mechanism is a plain
+    /// ERC-20 `transfer()` to the USDC system address — HL credits the
+    /// caller's spot ledger based on the emitted `Transfer` event.
+    /// Async on the HL side; the next `L1Read.spotBalance` reflects it.
+    function depositToSpot(uint256 amount) external onlyAgent notKilled {
+        require(amount > 0, "zero");
+        USDC.safeTransfer(USDC_SYSTEM_ADDRESS, amount);
+        emit BridgedErc20ToSpot(amount);
+        _heartbeat();
+    }
+
     // ─── HL spot ↔ perp routing ──────────────────────────────────────────
 
     /// Move USDC from the treasury's HL spot ledger into perp margin so
-    /// the next order has room. Caller must have already deposited the
-    /// HyperEVM USDC ERC-20 (via `fund`); HL treats the contract's spot
-    /// ledger as equal to the ERC-20 balance.
+    /// the next order has room. Caller must have already bridged the
+    /// HyperEVM USDC ERC-20 into spot via `depositToSpot`; HL spot and
+    /// HyperEVM ERC-20 are SEPARATE ledgers.
     function moveToPerp(uint64 amount) external onlyAgent notKilled {
         require(amount > 0, "zero");
         HyperliquidActions.send(
