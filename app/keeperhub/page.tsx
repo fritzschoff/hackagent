@@ -123,92 +123,27 @@ export default async function KeeperHubPage() {
         },
       ],
     },
+    // reputation-cache recipe trimmed in the honest-cuts pass — the
+    // workflow was deleted from KH and the route returns null. Reputation
+    // freshness is now pushed inline from /api/a2a/jobs via the
+    // reputation-pulse webhook (no on-chain setText, just Redis).
     {
       kind: "reputation-cache",
-      title: "reputation cache",
-      schedule: "webhook only · push from x402",
-      envVar: "KEEPERHUB_WORKFLOW_ID_REPUTATION_CACHE",
+      title: "reputation cache (deprecated)",
+      schedule: "n/a — Redis-only via reputation-pulse webhook",
+      envVar: "—",
       description:
-        "reads ERC-8004 feedbackCount and writes a compact summary to the `reputation-summary` ENS text record. webhook trigger only — fires when /api/a2a/jobs pushes via execute_workflow on a paid x402 quote (debounced 5min). no cron schedule.",
+        "Old workflow was deleted from KeeperHub. Reputation freshness now uses /api/keeperhub/reputation-pulse which writes the summary to Redis without an on-chain setText — saves gas on the agent's quiet hours and avoids the ENS-write coupling.",
       recipe: [
         {
-          kind: "trigger",
-          title: "cron schedule",
-          props: [
-            { k: "cron", v: "0 * * * *", mono: true },
-            { k: "input.agentId", v: String(addresses.agentId), mono: true },
-          ],
-        },
-        {
-          kind: "web3-read",
-          title: "ReputationRegistry.feedbackCount",
-          props: [
-            { k: "chain", v: "sepolia", mono: false },
-            { k: "address", v: reputationRegistry, mono: true },
-            {
-              k: "function",
-              v: "feedbackCount(uint256) view returns (uint256)",
-              mono: true,
-            },
-            { k: "args", v: "[{{$trigger.input.agentId}}]", mono: true },
-            { k: "outputAs", v: "$step2.count", mono: true },
-          ],
-        },
-        {
-          kind: "transform",
-          title: "compose summary string",
-          props: [
-            {
-              k: "expression",
-              v: '"feedback=" + $step2.count + " ts=" + $trigger.input.ts',
-              mono: true,
-            },
-            { k: "outputAs", v: "$step3.summary", mono: true },
-          ],
-        },
-        {
-          kind: "web3-read",
-          title: "ENS PublicResolver.text (idempotency check)",
-          props: [
-            { k: "address", v: SEPOLIA_PUBLIC_RESOLVER, mono: true },
-            {
-              k: "function",
-              v: "text(bytes32,string) view returns (string)",
-              mono: true,
-            },
-            { k: "args", v: `[${ensNode}, "reputation-summary"]`, mono: true },
-            { k: "outputAs", v: "$step4.current", mono: true },
-          ],
-          note: "skip the write step if $step4.current === $step3.summary — saves gas on quiet hours.",
-        },
-        {
-          kind: "conditional",
-          title: "$step4.current !== $step3.summary",
-          props: [
-            { k: "if false", v: "skip step 6 (and webhook with summary='no-op')", mono: false },
-            { k: "if true", v: "continue to setText", mono: false },
-          ],
-        },
-        {
-          kind: "web3-write",
-          title: "setText reputation-summary",
-          props: [
-            { k: "address", v: SEPOLIA_PUBLIC_RESOLVER, mono: true },
-            { k: "function", v: "setText(bytes32,string,string)", mono: true },
-            { k: "node", v: ensNode, mono: true },
-            { k: "key", v: "reputation-summary", mono: true },
-            { k: "value", v: "{{$step3.summary}}", mono: true },
-            { k: "signer", v: "PRICEWATCH_PK", mono: false },
-          ],
-        },
-        {
           kind: "webhook",
-          title: "callback",
+          title: "POST /api/keeperhub/reputation-pulse",
           props: [
-            { k: "url", v: webhookUrl, mono: true },
+            { k: "trigger", v: "push from /api/a2a/jobs", mono: false },
+            { k: "auth", v: "Bearer KEEPERHUB_WEBHOOK_SECRET", mono: true },
             {
               k: "body",
-              v: '{"kind":"reputation-cache","workflowRunId":"{{$run.id}}","txHash":"{{$step6.txHash}}","summary":"{{$step3.summary}}"}',
+              v: '{ ts, feedbackCount, summary }',
               mono: true,
             },
           ],

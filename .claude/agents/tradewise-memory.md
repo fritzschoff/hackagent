@@ -168,22 +168,19 @@ Six interdependent domains. Action is heaviest in capital stack, identity-and-tr
 - `redis.ts` — IORedis singleton + everything that touches Redis: `pushJob`, `pushKeeperhubRun`, `pushFundingSnapshot`, `getRecentTradeLog` (via treasury-log), `tryAcquireDebounce`, `recordCronTick`, `getAllCronStatuses`. Types: `KeeperhubRunKind`, `KeeperhubRun`, `FundingSnapshot`, `PricewatchCall`.
 - `edge-config.ts` — Vercel Edge Config loader. Types: `AddressMap` (Sepolia), `BaseSepoliaAddressMap` (Base + HL). `KeeperHubKind` union. Lookups: `getSepoliaAddresses`, `getBaseSepoliaAddresses`, `getKeeperHubWorkflowIdByKind`. **Source of truth for contract addresses.**
 
-**Agent identity & trust (mostly honest-cuts)**
+**Agent identity & trust (post-honest-cuts)**
 - `erc8004.ts` — reads on-chain ERC-8004 reputation + validation events. `readRecentFeedback`, `readValidationHistory`. Used on `/` dashboard + `/api/agent-card`.
 - `inft.ts` — reads AgentINFT state (memory root/URI, oracle, verifier). `readInft`, `getInftAddresses`, `inftOwner`, `transfer`.
 - `inft-oracle.ts` — AES-GCM blob encryption. `aesKeyFresh`, `encryptBlob`, `decryptBlob`, `oracleAddress`. Used by `/api/inft/oracle/*`.
 - `inft-redis.ts` — HKDF-wrapped per-token AES key store in Redis.
-- `bids.ts` — AgentBids events (honest-cuts: contract marked for removal). `readStandingBids`, `readBidHistory`.
-- `merger.ts` — AgentMerger events (honest-cuts). `MergerLineage`, `readMergerHistory`.
-- `compliance.ts` — ComplianceManifest reader (honest-cuts).
-- `credit.ts` — ReputationCredit reader (honest-cuts).
 - `rep-summary.ts` — reputation aggregation for ENS `reputation-summary` text record.
+
+(`bids.ts`, `merger.ts`, `compliance.ts`, `credit.ts`, `pricewatch.ts` removed in the honest-cuts pass.)
 
 **x402 / quoting**
 - `x402.ts` — server setup. `BASE_SEPOLIA_USDC`, `QUOTE_PRICE_USD = 0.10`. ExactEVM scheme. Used by `/api/a2a/jobs`.
 - `x402-client.ts` — `payingFetchFor(walletId)`. `decodePaymentResponse` extracts tx hash + payer from response headers.
 - `uniswap.ts` — Uniswap Trading API (mainnet) for quote lookups. `quoteSwap` + `mockQuote` fallback when no API key.
-- `pricewatch.ts` — token metadata + price lookups. `KNOWN_METADATA` + `FAKE_PRICES` hardcoded (honest-cuts: marked for replacement).
 - `pricing.ts` — reputation-graduated x402 pricing. Tiers `0/$0.10`, `50/$0.15`, `100/$0.20`. `pickPrice(feedbackCount)`.
 
 **0G**
@@ -290,12 +287,8 @@ Oracle internals (require INFT_ORACLE_API_KEY):
 - `ReputationRegistry` — `postFeedback`. **Permissionless** — the original code review flagged this as a HIGH sybil-vector. Mitigation deferred; ReputationCredit (which depends on this) is on the honest-cuts list.
 - `ValidationRegistry` — `requestValidation` + `postResponse`. Permissionless validator set.
 
-**Honest-cuts** (deprecated by the trading-agent brief — do not extend)
-- `AgentBids` — OpenSea-style standing offers. EIP-712 delegation + oracle-attested transfer. Marked for removal.
-- `AgentMerger` — on-chain agent M&A. Marked for removal.
-- `ReputationCredit` — uncollateralized USDC credit line. Front-runnable, sybil-able. Marked for removal.
-- `SlaBond` — slashable bond per job. `release` callable by agent at any time → bond is cosmetic. Marked for removal.
-- `ComplianceManifest` — `commitManifest` is front-runnable (no check that msg.sender matches the IdentityRegistry agent address). Marked for removal.
+**Honest-cuts** (REMOVED in the 2026-05-13 cleanup pass — do not re-add)
+- `AgentBids`, `AgentMerger`, `ReputationCredit`, `SlaBond`, `ComplianceManifest` are gone from `contracts/src/`, all tests, deploy scripts, ABIs, lib readers, UI pages, and the `/api/cron/compliance-attest` route.
 
 **ENS**
 - `OffchainResolver` — EIP-3668 wildcard resolver for `*.agentlab.eth`. Reverts `OffchainLookup` to the gateway. `resolveWithProof` verifies EIP-191 sig bound to `address(this)`. The signature timestamp check prevents replay. Keep.
@@ -357,7 +350,11 @@ Compliance / misc
 - 2026-05-12: HL_FACTS.md captures concrete numbers (fees, funding, bridge, signing). Bridge2 on Arbitrum at `0x2df1c51e09aecf9cacb7bc98cb1742757f163df7` (mainnet), `0x08cfc1B6b2dCF36A1480b99353A354AA8AC56f89` (testnet).
 - 2026-05-12: V1 HL TS client + V2.5 HyperliquidTreasury shipped, 176/176 tests pass.
 - 2026-05-12: V2.6 off-chain HL strategy adapter shipped; cron triggers migrated to KH.
-- 2026-05-12: **M1 kill-switch live test PASSED.** Disabled `TreasuryHeartbeatTrigger` at 15:37 UTC. KH `TreasuryKillSwitch` fired at 21:00 UTC, reading `heartbeatStale()=true` and calling `emergencyExit("keeperhub dead-mans-switch")` via the Turnkey wallet. Final state at 21:05 UTC: `killed=true`, position closed, treasury drained, splitter received 0.6 USDC (0.1 reserve + 0.5 collateral). Founder can now `claim()` 1.0 USDC total on the splitter. After completion, also disabled `TreasuryKillSwitch` itself since the contract is now permanently killed and the workflow has nothing to do — re-enable only on a fresh treasury deploy. **M1 → M2 gate cleared.**
+- 2026-05-12: **M1 kill-switch live test PASSED.** Disabled `TreasuryHeartbeatTrigger` at 15:37 UTC. KH `TreasuryKillSwitch` fired at 21:00 UTC, reading `heartbeatStale()=true` and calling `emergencyExit("keeperhub dead-mans-switch")` via the Turnkey wallet. Final state at 21:05 UTC: `killed=true`, position closed, treasury drained, splitter received 0.6 USDC (0.1 reserve + 0.5 collateral). Founder can now `claim()` 1.0 USDC total on the splitter. After completion, also disabled `TreasuryKillSwitch` itself since the contract is now permanently killed and the workflow has nothing to do. **M1 → M2 gate cleared.**
+- 2026-05-13: **emergencyExit try/catch fix shipped** + redeployed. TradingTreasury now wraps `exchange.closePosition` + `exchange.withdraw` in onlySelf trampolines via try/catch; HyperliquidTreasury wraps the CoreWriter close-order submit. Kill always sets `killed=true` + drains on-treasury USDC even when the venue is paused/under-funded/reverting. New TradingTreasury `0xDF24367b83B3C4d484ea88537197a28C2A0b6A07`, new MockPerpExchange `0xd951bBdA9666c9917a9eB0594d82fBab1805fd08`. KH workflows repointed.
+- 2026-05-13: **DeployHyperliquidTreasury.s.sol** shipped (Foundry script for HyperEVM chain 999). Not yet run — needs HYPE on the broadcaster for gas.
+- 2026-05-13: **Honest-cuts pass complete.** All 6 deprecated stacks gone: AgentBids (+ INFT bid UI + transfer-modal), AgentMerger, ReputationCredit, SlaBond, ComplianceManifest, pricewatch sidecar. Also gone: `/api/mcp` stub, three client-tick crons. Edge Config trimmed. Forge: 123/123. ~7,400 lines deleted.
+- 2026-05-13: **D1 of cross-chain dividend** shipped — `DividendStep1Withdraw` workflow on KH (id `800s7vxzq7q8kwcm2eqsf`) + `/api/keeperhub/dividend-step-1-withdraw` endpoint. Weekly Sundays 00:00 UTC, signs HL `withdraw3` with AGENT_PK, sends to HL bridge. Bridge2 settles to Arbitrum in 3-4 min. D2 + D3 (Arbitrum → Base → splitter distribute) wait on bridge choice.
 
 ## 7. Lessons learned (durable — add here when running an experiment surfaces a gotcha)
 
