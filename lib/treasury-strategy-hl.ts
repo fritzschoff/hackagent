@@ -74,8 +74,19 @@ export function decide(input: HlStrategyInput): HlAction {
   const hlSize = treasury.hlPosition.szi;
   const isShort = hlSize < 0n;
   const isLong = hlSize > 0n;
+  const perpAccountValue = treasury.marginSummary.accountValue;
 
   if (hlSize === 0n) {
+    // No point trying to open if the perp account has no margin — HL
+    // would reject the order. This guards against an unfunded treasury
+    // (just-deployed, or post-emergencyExit) burning gas every tick
+    // submitting orders HL will throw away.
+    if (perpAccountValue === 0n) {
+      return {
+        kind: "skip",
+        reason: "perp account empty — fund the treasury and depositToSpot+moveToPerp first",
+      };
+    }
     if (absFunding < OPEN_THRESHOLD_HOURLY) {
       return {
         kind: "hold",

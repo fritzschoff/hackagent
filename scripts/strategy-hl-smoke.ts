@@ -29,14 +29,18 @@ const baseTreasury: HlTreasuryView = {
   },
 };
 
+const fundedMargin = { accountValue: 100_000_000n, marginUsed: 0n, ntlPos: 0n, rawUsd: 100_000_000n };
+const funded: HlTreasuryView = { ...baseTreasury, marginSummary: fundedMargin };
+
 const cases: [HlTreasuryView, number | null, string][] = [
-  [{ ...baseTreasury, killed: true }, 1e-4, "skip:killed"],
-  [{ ...baseTreasury, heartbeatStale: true }, 1e-4, "skip:stale"],
-  [baseTreasury, null, "skip:no-funding"],
-  [{ ...baseTreasury, markPx: 0n }, 1e-4, "skip:no-mark"],
-  [baseTreasury, 1e-4, "open:short (longs paying shorts)"],
-  [baseTreasury, -1e-4, "open:long (shorts paying longs)"],
-  [baseTreasury, 1e-6, "hold:below-open"],
+  [{ ...funded, killed: true }, 1e-4, "skip:killed"],
+  [{ ...funded, heartbeatStale: true }, 1e-4, "skip:stale"],
+  [funded, null, "skip:no-funding"],
+  [{ ...funded, markPx: 0n }, 1e-4, "skip:no-mark"],
+  [baseTreasury, 1e-4, "skip:no-perp-margin (unfunded)"],
+  [funded, 1e-4, "open:short (longs paying shorts)"],
+  [funded, -1e-4, "open:long (shorts paying longs)"],
+  [funded, 1e-6, "hold:below-open"],
   [
     {
       ...baseTreasury,

@@ -388,6 +388,24 @@ If accrued funding on the open short is large enough that the credited balance e
 
 Workflow IDs are stable across update_workflow calls. After a disable+re-enable cycle, the `KEEPERHUB_WORKFLOW_ID_*` env var doesn't need to change.
 
+### 7.4 HyperEVM ERC-20 ≠ HL spot ledger (M2 deploy gotcha)
+
+When I first wrote `HyperliquidTreasury` I assumed "the contract holds USDC ERC-20 on HyperEVM and that balance is the same as the contract's HL spot balance." It is not. They are two separate ledgers.
+
+To move USDC across, you do a plain ERC-20 `transfer()` to a **system address** derived from the token index: `0x20` + zero-padded + tokenIndex (big-endian, 4 bytes). USDC = token index 0 → `0x2000000000000000000000000000000000000000`. HL credits the contract's HyperCore spot account based on the emitted `Transfer` event. The reverse direction is the L1 `spotSend` action via CoreWriter.
+
+**The `evmContract.address` returned by `spotMeta` (`0x6b9e773…` on mainnet) is the CoreDepositWallet (Circle's bridge for user wallets), NOT the native USDC ERC-20.** The native USDC ERC-20 on HyperEVM mainnet is `0xb88339CB7199b77E23DB6E890353E22632Ba630f`. Treasury must hold that.
+
+**Lesson for the contract:** added `depositToSpot(amount)` — agent-only ERC-20 transfer to the system address — between `fund()` and `moveToPerp()`. Without it, `moveToPerp` operates on an empty spot ledger and the perp account stays at 0. Pre-deploy validation must include the on-chain reads: `cast call <treasury> USDC()(address)` and `cast call <USDC> balanceOf(<treasury>)`. If symbol/decimals revert, that's a proxy reading a wrong slot — wrong address.
+
+### 7.5 Strategy must gate opens on perp-margin (M2 deploy follow-up)
+
+Right after the M2 deploy with `HYPERLIQUID_TREASURY_ADDRESS` wired, the operator pointed out the treasury was unfunded but the cron would fire every 15min anyway. The original `decide()` only checked "do I have an HL position?" before opening — not "do I have margin to open with?" — so an empty treasury would submit a fresh limit order every tick, HL would reject for insufficient margin, and we'd drip gas forever (~$0.30/day at 96 ticks).
+
+**Fix:** in `lib/treasury-strategy-hl.ts` `decide()`, gate the open branch on `treasury.marginSummary.accountValue !== 0n` and return `{kind:"skip", reason:"perp account empty — ..."}` otherwise. Cheap to evaluate (it's part of the existing `readHlTreasury` snapshot) and prevents the rejected-order tax during the gap between deploy and funding.
+
+**Generalised principle for strategy decisions**: any "submit a write" branch must check preconditions that would make the write fail at the venue. If the venue will reject, the strategy should skip and log, not submit. **Don't pay gas to learn what the venue would have told you for free.**
+
 ## 6. Open M3 questions (for the operator, not technical blockers)
 
 1. Capital ceiling for V3 — should it be enforced at the contract level so even a rogue agent can't exceed it?
