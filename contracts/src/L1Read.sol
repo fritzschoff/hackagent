@@ -13,8 +13,12 @@ pragma solidity ^0.8.28;
 /// gas forwarded to keep our caller alive on misuse.
 library L1Read {
     // ─── precompile addresses ────────────────────────────────────────────
+    //
+    // Only the reads we actually use are exposed; the full HL precompile
+    // map is at .claude/agents/tradewise-memory.md §3. We standardise on
+    // POSITION2 (uint32 perp index) since the uint16-indexed POSITION at
+    // 0x0800 is the legacy variant.
 
-    address constant POSITION = 0x0000000000000000000000000000000000000800;
     address constant WITHDRAWABLE = 0x0000000000000000000000000000000000000803;
     address constant MARK_PX = 0x0000000000000000000000000000000000000806;
     address constant ORACLE_PX = 0x0000000000000000000000000000000000000807;

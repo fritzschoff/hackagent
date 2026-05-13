@@ -155,7 +155,6 @@ export function buildEnsPrimaryNameSetter(args: {
           }),
           webhookPayload: JSON.stringify({
             kind: "primary-name",
-            workflowRunId: "{{$run.id}}",
             txHash:
               "{{@write-setname-sepolia:Web3 Write setName (Sepolia).txHash}}",
             label:
@@ -282,7 +281,6 @@ export function buildEnsAvatarSync(args: {
           }),
           webhookPayload: JSON.stringify({
             kind: "avatar-sync",
-            workflowRunId: "{{$run.id}}",
             txHash:
               "{{@write-settext-avatar:Web3 Write setText avatar.txHash}}",
             ensName:
@@ -313,7 +311,7 @@ export function buildEnsAvatarSync(args: {
   return {
     name: "ENSAvatarSync",
     description:
-      "Webhook-triggered. Input: {ensName, tokenId, contract, chainId}. Calls PublicResolver.setText(agentlab.eth node, 'avatar', 'eip155:11155111/erc721:<inft>/<tokenId>') on Sepolia. Triggered on INFT mint/transfer events. Broadcaster: PRICEWATCH_PK via Turnkey integration.",
+      "Webhook-triggered. Input: {ensName, tokenId, contract, chainId}. Calls PublicResolver.setText(agentlab.eth node, 'avatar', 'eip155:11155111/erc721:<inft>/<tokenId>') on Sepolia. Triggered on INFT mint/transfer events. Broadcaster: Turnkey integration (test wallet).",
     nodes,
     edges,
   };
@@ -375,7 +373,6 @@ export function buildGatewayCacheInvalidator(args: {
             tokenId:
               "{{@trigger-webhook:Webhook Trigger.data.tokenId}}",
             keys: "{{@trigger-webhook:Webhook Trigger.data.keys}}",
-            workflowRunId: "{{$run.id}}",
           }),
         },
       },
@@ -598,8 +595,8 @@ const EXCHANGE_FUNDING_RATE_ABI = JSON.stringify([
  * trading decisions from the agent's own cron so we can iterate on the
  * decision policy without redeploying the agent.
  *
- * In M2 the read source is swapped out for the real Hyperliquid funding
- * endpoint via HTTP Request, but the workflow shape stays identical.
+ * The M2 HL strategy cron hits the HL REST API directly (no workflow
+ * indirection) — this stub-perp poll exists only for the M1 mock.
  */
 export function buildTreasuryFundingPoll(args: {
   appUrl: string;
