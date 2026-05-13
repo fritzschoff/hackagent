@@ -30,11 +30,7 @@ export async function GET(req: Request) {
         })
       : { price: "$0.10" as const, feedbackCount: 0 };
   const agent = tryLoadAccount("agent");
-  const pricewatchAccount = tryLoadAccount("pricewatch");
   const agentAddr = agent?.address ?? ens.address ?? addresses.agentEOA;
-  const pricewatchAddr =
-    pricewatchAccount?.address ?? addresses.pricewatchEOA ?? null;
-  const pricewatchAgentId = addresses.pricewatchAgentId ?? 0;
 
   const card = {
     type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
@@ -124,25 +120,7 @@ export async function GET(req: Request) {
           model: "fractional revenue-share ERC-20 backed by x402 settlements",
         }
       : null,
-    upstreamAgents: pricewatchAddr
-      ? [
-          {
-            name: "pricewatch",
-            ens: "pricewatch.agentlab.eth",
-            endpoint: `${baseUrl}/api/a2a/pricewatch/jobs`,
-            wallet: pricewatchAddr,
-            agentId: pricewatchAgentId,
-            agentRegistry:
-              addresses.identityRegistry !==
-              "0x0000000000000000000000000000000000000000"
-                ? `eip155:11155111:${addresses.identityRegistry}`
-                : null,
-            description:
-              "Token metadata sidecar consumed by tradewise before each quote. Paid in x402 USDC.",
-            x402Support: true,
-          },
-        ]
-      : [],
+    upstreamAgents: [],
   };
 
   return Response.json(card, {

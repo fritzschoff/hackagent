@@ -6,7 +6,6 @@ const ROLES = [
   "client2",
   "client3",
   "validator",
-  "pricewatch",
 ] as const;
 type Role = (typeof ROLES)[number];
 
@@ -53,9 +52,6 @@ for (const w of wallets.filter((w) =>
 )) {
   lines.push(`  ${w.role.padEnd(10)} ${w.address}  https://faucet.circle.com/`);
 }
-lines.push(
-  "  (agent needs Base Sepolia USDC to pay pricewatch via x402 in the two-hop economy demo)",
-);
 lines.push("");
 lines.push("0G Galileo (for 0G Storage + Compute in P3):");
 lines.push(`  agent      ${wallets[0]?.address}  https://faucet.0g.ai/`);

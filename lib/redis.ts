@@ -154,45 +154,6 @@ export async function getRecentKeeperhubRuns(
   return parsed.slice(0, limit);
 }
 
-export type PricewatchCall = {
-  jobId: string;
-  paymentTx: string;
-  symbol: string | null;
-  ts: number;
-};
-
-export async function pushPricewatchCall(call: PricewatchCall): Promise<void> {
-  const r = getRedis();
-  if (!r) return;
-  await r.lpush("pricewatch:calls", JSON.stringify(call));
-  await r.ltrim("pricewatch:calls", 0, 99);
-  await r.incrby("pricewatch:earnings_cents", 2);
-}
-
-export async function getRecentPricewatchCalls(
-  limit = 20,
-): Promise<PricewatchCall[]> {
-  const r = getRedis();
-  if (!r) return [];
-  const raw = await r.lrange("pricewatch:calls", 0, limit - 1);
-  return raw
-    .map((s) => {
-      try {
-        return JSON.parse(s) as PricewatchCall;
-      } catch {
-        return null;
-      }
-    })
-    .filter((x): x is PricewatchCall => x !== null);
-}
-
-export async function getPricewatchEarningsCents(): Promise<number> {
-  const r = getRedis();
-  if (!r) return 0;
-  const v = await r.get("pricewatch:earnings_cents");
-  return Number(v ?? 0);
-}
-
 export type FundingSnapshot = {
   /// Signed funding rate in USDC base units per asset unit per second.
   /// Positive = longs pay shorts. Convention matches MockPerpExchange.

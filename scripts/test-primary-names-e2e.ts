@@ -28,8 +28,6 @@ import { sepolia } from "viem/chains";
 
 /** M1: locally-keyed wallets with reverse records set on Sepolia */
 const AGENT_EOA = "0x7a83678e330a0C565e6272498FFDF421621820A3" as const;
-const PRICEWATCH_DEPLOYER =
-  "0xBf5df5c89b1eCa32C1E8AC7ECdd93d44F86F2469" as const;
 const VALIDATOR = "0x01340D5A7A6995513C0C3EdF0367236e5b9C83F6" as const;
 
 /** M4: Turnkey wallet — reverse record set via execute_contract_call */
@@ -38,7 +36,6 @@ const TURNKEY = "0xB28cC07F397Af54c89b2Ff06b6c595F282856539" as const;
 // ─── Expected labels ──────────────────────────────────────────────────────────
 
 const EXPECTED_AGENT_LABEL = "agent-eoa.tradewise.agentlab.eth";
-const EXPECTED_PRICEWATCH_LABEL = "pricewatch-deployer.agentlab.eth";
 const EXPECTED_VALIDATOR_LABEL = "validator.agentlab.eth";
 const EXPECTED_TURNKEY_LABEL = "keeperhub.agentlab.eth";
 
@@ -106,25 +103,8 @@ async function main() {
     fail("step 1: AGENT_EOA getEnsName", e);
   }
 
-  // ─── Step 2: PRICEWATCH_DEPLOYER reverse name ──────────────────────────────
-  console.log("\n--- Step 2: getEnsName(PRICEWATCH_DEPLOYER) ---");
-  try {
-    const name = await client.getEnsName({ address: PRICEWATCH_DEPLOYER });
-    console.log(`  result: ${name}`);
-    if (name === EXPECTED_PRICEWATCH_LABEL) {
-      ok(`step 2: PRICEWATCH_DEPLOYER (${PRICEWATCH_DEPLOYER}) → "${name}"`);
-    } else {
-      fail(
-        `step 2: PRICEWATCH_DEPLOYER`,
-        `expected "${EXPECTED_PRICEWATCH_LABEL}", got "${name}"`,
-      );
-    }
-  } catch (e) {
-    fail("step 2: PRICEWATCH_DEPLOYER getEnsName", e);
-  }
-
-  // ─── Step 3: VALIDATOR reverse name ───────────────────────────────────────
-  console.log("\n--- Step 3: getEnsName(VALIDATOR) ---");
+  // ─── Step 2: VALIDATOR reverse name ───────────────────────────────────────
+  console.log("\n--- Step 2: getEnsName(VALIDATOR) ---");
   try {
     const name = await client.getEnsName({ address: VALIDATOR });
     console.log(`  result: ${name}`);

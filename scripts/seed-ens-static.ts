@@ -26,26 +26,14 @@ const SEED: Record<string, StaticBlock> = {
     "agent-card": `${APP_URL}/.well-known/agent-card.json`,
     "current-price-tier": "$0.10–$0.20 / paid quote (reputation-gated)",
   },
-  "pricewatch.agentlab.eth": {
-    description:
-      "Upstream price oracle agent. Paid $0.02 per quote in x402 USDC for token metadata. Two-hop: client → tradewise → pricewatch.",
-    url: `${APP_URL}/marketplace`,
-    "agent-card": `${APP_URL}/.well-known/agent-card.json`,
-    "current-price-tier": "$0.02 / quote",
-  },
   "agent-eoa.tradewise.agentlab.eth": {
     description:
       "Tradewise agent operator wallet (EOA). Receives x402 settlements on Base Sepolia; signs ENS heartbeats and ERC-8004 feedback.",
     url: "https://sepolia.etherscan.io/address/0x7a83678e330a0C565e6272498FFDF421621820A3",
   },
-  "pricewatch-deployer.agentlab.eth": {
-    description:
-      "Pricewatch deployer wallet — Sepolia gas pool, INFT minter, AgentBids/Merger broadcaster.",
-    url: "https://sepolia.etherscan.io/address/0xBf5df5c89b1eCa32C1E8AC7ECdd93d44F86F2469",
-  },
   "validator.agentlab.eth": {
     description:
-      "ERC-8004 validator wallet. Approves or slashes SLA bonds and compliance-manifest challenges.",
+      "ERC-8004 validator wallet. Approves or slashes SLA bonds.",
     url: "https://sepolia.etherscan.io/address/0x01340D5A7A6995513C0C3EdF0367236e5b9C83F6",
   },
   "keeperhub.agentlab.eth": {

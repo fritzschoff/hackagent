@@ -19,18 +19,11 @@ type AddressMap = {
   validationRegistry: `0x${string}`;
   agentEOA: `0x${string}`;
   agentId: number;
-  pricewatchEOA?: `0x${string}`;
-  pricewatchAgentId?: number;
   identityRegistryV2?: `0x${string}`;
   inftAddress?: `0x${string}`;
   inftAgentId?: number;
   inftTokenId?: number;
-  agentBidsAddress?: `0x${string}`;
   sepoliaUsdcAddress?: `0x${string}`;
-  reputationCreditAddress?: `0x${string}`;
-  slaBondAddress?: `0x${string}`;
-  agentMergerAddress?: `0x${string}`;
-  complianceManifestAddress?: `0x${string}`;
 };
 
 function readVercelToken(): string {
@@ -114,24 +107,6 @@ async function main(): Promise<void> {
     agentEOA: dep.agentWallet,
     agentId: dep.agentId,
   };
-  const pricewatchEOA = parseArg("pricewatch-eoa") ??
-    process.env.PRICEWATCH_EOA;
-  const pricewatchAgentIdRaw = parseArg("pricewatch-agentid") ??
-    process.env.PRICEWATCH_AGENT_ID;
-  if (pricewatchEOA) {
-    if (!/^0x[a-fA-F0-9]{40}$/.test(pricewatchEOA)) {
-      throw new Error(`Invalid pricewatch EOA: ${pricewatchEOA}`);
-    }
-    value.pricewatchEOA = pricewatchEOA as `0x${string}`;
-  }
-  if (pricewatchAgentIdRaw) {
-    const n = Number(pricewatchAgentIdRaw);
-    if (!Number.isInteger(n) || n <= 0) {
-      throw new Error(`Invalid pricewatch agentId: ${pricewatchAgentIdRaw}`);
-    }
-    value.pricewatchAgentId = n;
-  }
-
   // Phase 3 (INFT V2). When an inft deployment file exists, layer it in.
   const inftDeployPath = join(
     process.cwd(),
@@ -158,77 +133,6 @@ async function main(): Promise<void> {
     value.inftTokenId = n;
   }
 
-  // Phase 4 (bidding pool).
-  const bidsDeployPath = join(
-    process.cwd(),
-    "contracts",
-    "deployments",
-    `${network}-bids.json`,
-  );
-  if (existsSync(bidsDeployPath)) {
-    const bidsDep = JSON.parse(readFileSync(bidsDeployPath, "utf8")) as {
-      agentBids: `0x${string}`;
-      usdc: `0x${string}`;
-    };
-    value.agentBidsAddress = bidsDep.agentBids;
-    value.sepoliaUsdcAddress = bidsDep.usdc;
-  }
-
-  // Phase 10 (reputation credit pool).
-  const creditDeployPath = join(
-    process.cwd(),
-    "contracts",
-    "deployments",
-    `${network}-credit.json`,
-  );
-  if (existsSync(creditDeployPath)) {
-    const creditDep = JSON.parse(readFileSync(creditDeployPath, "utf8")) as {
-      reputationCredit: `0x${string}`;
-    };
-    value.reputationCreditAddress = creditDep.reputationCredit;
-  }
-
-  // Phase 11 (SLA bond contract).
-  const slaDeployPath = join(
-    process.cwd(),
-    "contracts",
-    "deployments",
-    `${network}-sla.json`,
-  );
-  if (existsSync(slaDeployPath)) {
-    const slaDep = JSON.parse(readFileSync(slaDeployPath, "utf8")) as {
-      slaBond: `0x${string}`;
-    };
-    value.slaBondAddress = slaDep.slaBond;
-  }
-
-  // Phase 12 (agent merger).
-  const mergerDeployPath = join(
-    process.cwd(),
-    "contracts",
-    "deployments",
-    `${network}-merger.json`,
-  );
-  if (existsSync(mergerDeployPath)) {
-    const mergerDep = JSON.parse(readFileSync(mergerDeployPath, "utf8")) as {
-      agentMerger: `0x${string}`;
-    };
-    value.agentMergerAddress = mergerDep.agentMerger;
-  }
-
-  // Issue #6 (compliance manifest registry).
-  const compliancePath = join(
-    process.cwd(),
-    "contracts",
-    "deployments",
-    `${network}-compliance.json`,
-  );
-  if (existsSync(compliancePath)) {
-    const dep = JSON.parse(readFileSync(compliancePath, "utf8")) as {
-      complianceManifest: `0x${string}`;
-    };
-    value.complianceManifestAddress = dep.complianceManifest;
-  }
   const id = readEdgeConfigId();
   const token = readVercelToken();
   const teamId = process.env.VERCEL_TEAM_ID ?? "team_xm9zliWnyGJOsqIMHfNlXkGF";

@@ -9,16 +9,8 @@ const NAMES = [
     note: "the agent itself (W1 INFT cross-link)",
   },
   {
-    label: "pricewatch.agentlab.eth",
-    note: "the upstream price oracle agent",
-  },
-  {
     label: "agent-eoa.tradewise.agentlab.eth",
     note: "agent EOA wallet (W3 wildcard)",
-  },
-  {
-    label: "pricewatch-deployer.agentlab.eth",
-    note: "pricewatch deployer wallet (W3)",
   },
   {
     label: "validator.agentlab.eth",
@@ -34,7 +26,6 @@ const TEXT_KEYS = [
   { key: "last-seen-at", note: "Redis (KeeperHub heartbeat-pulse)" },
   { key: "memory-rotations", note: "Redis (W1 oracle, W2 cross-link)" },
   { key: "inft-tradeable", note: "AgentINFT.memoryReencrypted (W1)" },
-  { key: "outstanding-bids", note: "AgentBids.biddersCount" },
   { key: "reputation-summary", note: "ReputationRegistry.feedbackCount" },
   { key: "avatar", note: "computed eip155:.../erc721:..." },
   { key: "agent-card", note: "Edge Config (static)" },
@@ -47,10 +38,6 @@ const KNOWN_REVERSE_ADDRS = [
   {
     addr: "0x7a83678e330a0C565e6272498FFDF421621820A3",
     expected: "agent-eoa.tradewise.agentlab.eth",
-  },
-  {
-    addr: "0xBf5df5c89b1eCa32C1E8AC7ECdd93d44F86F2469",
-    expected: "pricewatch-deployer.agentlab.eth",
   },
   {
     addr: "0x01340D5A7A6995513C0C3EdF0367236e5b9C83F6",

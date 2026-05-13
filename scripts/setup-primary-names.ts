@@ -4,7 +4,7 @@
  * if reverse name already matches. Gracefully skips Base Sepolia if the
  * L2 ReverseRegistrar is not deployed at the canonical ENSIP-19 address.
  *
- * Required env: AGENT_PK, PRICEWATCH_PK, VALIDATOR_PK,
+ * Required env: AGENT_PK, VALIDATOR_PK,
  *               SEPOLIA_RPC_URL, BASE_SEPOLIA_RPC_URL.
  */
 import {
@@ -68,7 +68,6 @@ type Plan = {
 
 const PLANS: Plan[] = [
   { pkEnv: "AGENT_PK", label: "agent-eoa.tradewise.agentlab.eth" },
-  { pkEnv: "PRICEWATCH_PK", label: "pricewatch-deployer.agentlab.eth" },
   { pkEnv: "VALIDATOR_PK", label: "validator.agentlab.eth" },
 ];
 

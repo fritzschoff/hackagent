@@ -7,7 +7,6 @@ import { sepoliaPublicClient } from "@/lib/wallets";
 import { getRedis } from "@/lib/redis";
 import { getSepoliaAddresses } from "@/lib/edge-config";
 import AgentINFTAbi from "@/lib/abis/AgentINFT.json";
-import AgentBidsAbi from "@/lib/abis/AgentBids.json";
 import ReputationRegistryAbi from "@/lib/abis/ReputationRegistry.json";
 
 // ----------------------------------------------------------------------------
@@ -76,8 +75,6 @@ export type AgentInfo = {
 const WALLET_LABELS: Record<string, `0x${string}`> = {
   "agent-eoa.tradewise.agentlab.eth":
     "0x7a83678e330a0C565e6272498FFDF421621820A3",
-  "pricewatch-deployer.agentlab.eth":
-    "0xBf5df5c89b1eCa32C1E8AC7ECdd93d44F86F2469",
   // VALIDATOR_PK address
   "validator.agentlab.eth":
     "0x01340D5A7A6995513C0C3EdF0367236e5b9C83F6",
@@ -88,15 +85,14 @@ const WALLET_LABELS: Record<string, `0x${string}`> = {
 
 /**
  * Maps a fully-qualified label like "tradewise.agentlab.eth" to the agent's
- * identifiers.  Hardcoded for v1; W3 extended with direct wallet labels for
- * nested subnames (agent-eoa, pricewatch-deployer, validator, keeperhub).
+ * identifiers. Hardcoded for v1; W3 extended with direct wallet labels for
+ * nested subnames (agent-eoa, validator, keeperhub).
  */
 export async function labelToAgent(
   label: string,
 ): Promise<AgentInfo | null> {
   const lower = label.toLowerCase();
   if (lower === "tradewise.agentlab.eth") return { agentId: 1, tokenId: 1 };
-  if (lower === "pricewatch.agentlab.eth") return { agentId: 2, tokenId: null };
 
   // Direct wallet labels (W3): return addressOverride so computeAddr skips the
   // agentId-based edge-config lookup.
@@ -204,30 +200,12 @@ async function computeTextRecord(
       }
     }
 
-    // ---- outstanding-bids: on-chain AgentBids.biddersCount ----
-    case "outstanding-bids": {
-      if (agent.tokenId === null) return "0";
-      try {
-        const addrs = await getSepoliaAddresses();
-        const count = (await sepoliaPublicClient().readContract({
-          address: addrs.agentBidsAddress as `0x${string}`,
-          abi: AgentBidsAbi as readonly unknown[],
-          functionName: "biddersCount",
-          args: [BigInt(agent.tokenId)],
-        })) as bigint;
-        return String(count);
-      } catch {
-        return "0";
-      }
-    }
-
-    // ---- compliance-status: skip v1 ----
+    // outstanding-bids / compliance-status / tvl: deprecated keys; the
+    // contracts that backed them were removed in the honest-cuts pass.
+    case "outstanding-bids":
     case "compliance-status":
-      return "";
-
-    // ---- tvl: skip v1 ----
     case "tvl":
-      return "0";
+      return "";
 
     // ---- inft-tradeable: AgentINFT.memoryReencrypted(tokenId) ----
     // True iff the last transfer went through the proof path (oracle
@@ -303,9 +281,6 @@ async function computeAddr(label: string): Promise<`0x${string}`> {
   const addrs = await getSepoliaAddresses();
   if (agent.agentId === 1) {
     return (addrs.agentEOA as `0x${string}`) ?? zero;
-  }
-  if (agent.agentId === 2) {
-    return (addrs.pricewatchEOA as `0x${string}`) ?? zero;
   }
   return zero;
 }

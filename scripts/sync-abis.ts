@@ -8,7 +8,6 @@ const CONTRACTS = [
   "IdentityRegistryV2",
   "AgentINFT",
   "AgentINFTVerifier",
-  "AgentBids",
   "AgentShares",
   "RevenueSplitter",
   "SharesSale",

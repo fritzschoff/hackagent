@@ -6,7 +6,6 @@ import { quoteSwap } from "@/lib/uniswap";
 import {
   pushJob,
   pushKeeperhubRun,
-  pushPricewatchCall,
   tryAcquireDebounce,
 } from "@/lib/redis";
 import { tryLoadAccount } from "@/lib/wallets";
@@ -14,45 +13,14 @@ import { SwapIntent, type Job } from "@/lib/types";
 import { appendJobLog } from "@/lib/zg-storage";
 import { callSwapWorkflow, triggerKeeperHub } from "@/lib/keeperhub";
 import { reasonAboutQuote } from "@/lib/zg-compute";
-import { callPaidJson } from "@/lib/x402-client";
-import { postFeedback } from "@/lib/erc8004";
 import { getSepoliaAddresses } from "@/lib/edge-config";
 import { getQuotePrice } from "@/lib/pricing";
-import type { PricewatchResult } from "@/lib/pricewatch";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const agent = tryLoadAccount("agent");
 const agentAddress = agent?.address ?? null;
-
-type PricewatchCall = {
-  ok: boolean;
-  paymentTx: string | null;
-  payer: string | null;
-  result: PricewatchResult | null;
-  error?: string;
-};
-
-async function consultPricewatch(
-  baseUrl: string,
-  tokenIn: string,
-): Promise<PricewatchCall | null> {
-  if (!process.env.PRICEWATCH_PK) return null;
-  const res = await callPaidJson<{ ok: boolean; result: PricewatchResult }>({
-    walletId: "agent",
-    url: `${baseUrl}/api/a2a/pricewatch/jobs`,
-    body: { token: tokenIn },
-    timeoutMs: 20_000,
-  });
-  return {
-    ok: res.ok,
-    paymentTx: res.paymentTx,
-    payer: res.payer,
-    result: res.body?.result ?? null,
-    error: res.error,
-  };
-}
 
 const handler = async (req: NextRequest): Promise<NextResponse> => {
   const raw = await req.json().catch(() => null);
@@ -70,16 +38,7 @@ const handler = async (req: NextRequest): Promise<NextResponse> => {
     process.env.NEXT_PUBLIC_APP_URL ??
     `${url.protocol}//${url.host}`;
 
-  const [pricewatch, quote] = await Promise.all([
-    consultPricewatch(baseUrl, intent.tokenIn).catch((err) => {
-      console.error(
-        "[pricewatch] consult failed:",
-        err instanceof Error ? err.message : err,
-      );
-      return null;
-    }),
-    quoteSwap(intent),
-  ]);
+  const quote = await quoteSwap(intent);
 
   const paymentResponseHeader =
     req.headers.get("payment-response") ?? req.headers.get("x-payment-response");
@@ -93,51 +52,7 @@ const handler = async (req: NextRequest): Promise<NextResponse> => {
     paymentTx,
     paymentFromAddress: payerAddress,
     ts: Date.now(),
-    pricewatch: pricewatch
-      ? {
-          ok: pricewatch.ok,
-          paymentTx: pricewatch.paymentTx,
-          symbol: pricewatch.result?.symbol ?? null,
-          priceUsd: pricewatch.result?.priceUsd ?? null,
-        }
-      : null,
   };
-
-  if (pricewatch?.paymentTx) {
-    waitUntil(
-      pushPricewatchCall({
-        jobId: job.id,
-        paymentTx: pricewatch.paymentTx,
-        symbol: pricewatch.result?.symbol ?? null,
-        ts: Date.now(),
-      }),
-    );
-
-    waitUntil(
-      (async () => {
-        try {
-          const addresses = await getSepoliaAddresses();
-          const pricewatchAgentId = addresses.pricewatchAgentId;
-          if (!pricewatchAgentId || pricewatchAgentId === 0) return;
-          const r = await postFeedback({
-            agentId: BigInt(pricewatchAgentId),
-            score: pricewatch.ok ? 95 : 50,
-            decimals: 0,
-            tag: "pricewatch-call",
-            clientWallet: "agent",
-          });
-          console.log(
-            `[pricewatch] feedback agentId=${pricewatchAgentId} txHash=${r?.txHash ?? "(none)"}`,
-          );
-        } catch (err) {
-          console.error(
-            "[pricewatch] feedback failed:",
-            err instanceof Error ? err.message : err,
-          );
-        }
-      })(),
-    );
-  }
 
   waitUntil(pushJob(job));
   waitUntil(

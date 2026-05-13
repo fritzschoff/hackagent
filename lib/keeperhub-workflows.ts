@@ -394,7 +394,7 @@ export function buildGatewayCacheInvalidator(args: {
   return {
     name: "GatewayCacheInvalidator",
     description:
-      "Webhook-triggered. Input: {event, agentId, tokenId, keys[]}. POSTs to /api/ens-gateway/cache/invalidate with bearer auth to purge stale CCIP-Read gateway cache entries after on-chain events (MemoryReencrypted, MemoryStaled, BidPlaced, etc.). Zero gas.",
+      "Webhook-triggered. Input: {event, agentId, tokenId, keys[]}. POSTs to /api/ens-gateway/cache/invalidate with bearer auth to purge stale CCIP-Read gateway cache entries after on-chain events (MemoryReencrypted, MemoryStaled, etc.). Zero gas.",
     nodes,
     edges,
   };

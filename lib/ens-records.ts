@@ -30,13 +30,12 @@ export async function readEnsText(name: string, key: string): Promise<string | n
 }
 
 export async function readAgentTelemetry(label: string) {
-  const [lastSeenAt, rotations, inftTradeable, outstandingBids, reputationSummary] =
+  const [lastSeenAt, rotations, inftTradeable, reputationSummary] =
     await Promise.all([
       readEnsText(label, "last-seen-at"),
       readEnsText(label, "memory-rotations"),
       readEnsText(label, "inft-tradeable"),
-      readEnsText(label, "outstanding-bids"),
       readEnsText(label, "reputation-summary"),
     ]);
-  return { lastSeenAt, rotations, inftTradeable, outstandingBids, reputationSummary };
+  return { lastSeenAt, rotations, inftTradeable, reputationSummary };
 }

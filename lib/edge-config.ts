@@ -7,13 +7,10 @@ export type AddressMap = {
   validationRegistry: `0x${string}`;
   agentEOA: `0x${string}`;
   agentId: number;
-  pricewatchEOA?: `0x${string}`;
-  pricewatchAgentId?: number;
   identityRegistryV2?: `0x${string}`;
   inftAddress?: `0x${string}`;
   inftAgentId?: number;
   inftTokenId?: number;
-  agentBidsAddress?: `0x${string}`;
   sepoliaUsdcAddress?: `0x${string}`;
 };
 

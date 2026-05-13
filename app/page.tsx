@@ -2,8 +2,6 @@ import {
   getRecentJobs,
   getEarningsCents,
   getRecentKeeperhubRuns,
-  getRecentPricewatchCalls,
-  getPricewatchEarningsCents,
   getLatestFundingSnapshot,
 } from "@/lib/redis";
 import { getCronStatuses } from "@/lib/cron-auth";
@@ -47,8 +45,6 @@ export default async function DashboardPage() {
     addresses,
     khRuns,
     ens,
-    pricewatchCalls,
-    pricewatchEarningsCents,
     treasury,
     funding,
     tradeLog,
@@ -61,8 +57,6 @@ export default async function DashboardPage() {
     getSepoliaAddresses(),
     getRecentKeeperhubRuns(200),
     resolveAgentEns(),
-    getRecentPricewatchCalls(10),
-    getPricewatchEarningsCents(),
     readTreasury(),
     getLatestFundingSnapshot(),
     getRecentTradeLog(20),
@@ -74,7 +68,6 @@ export default async function DashboardPage() {
     jobs.length > 0 && feedback.length > 0 && addresses.agentId > 0;
   const ensResolved = ens.address !== null;
   const heartbeatAge = relativeAge(ens.lastSeenAt);
-  const pricewatchActive = pricewatchCalls.length > 0;
 
   return (
     <main className="mx-auto max-w-6xl px-6 md:px-10 pb-24">
@@ -160,67 +153,6 @@ export default async function DashboardPage() {
             mono
             amber={!live}
           />
-        </div>
-      </Section>
-
-      {/* PRICEWATCH UPSTREAM */}
-      <Section
-        number="02"
-        title="upstream agent"
-        sub="pricewatch.agentlab.eth · two-hop x402 economy"
-        className="reveal reveal-5"
-      >
-        <div className="card-flat">
-          <p className="text-xs text-(--color-muted) max-w-2xl mb-5 leading-relaxed">
-            tradewise pays this sidecar agent <code>$0.02</code> per quote in
-            x402 USDC for token metadata. each call is a two-hop chain visible
-            on-chain: <em className="display-italic">client → tradewise →
-              pricewatch</em>.
-          </p>
-          <div className="stat-grid">
-            <Cell
-              label="pw earnings"
-              value={`${(pricewatchEarningsCents / 100).toFixed(2)}`}
-              unit="USDC"
-              accent
-            />
-            <Cell label="pw calls" value={String(pricewatchCalls.length)} />
-            <Cell
-              label="pw status"
-              value={pricewatchActive ? "active" : "idle"}
-              mono
-              amber={!pricewatchActive}
-            />
-            <Cell
-              label="pw agentId"
-              value={
-                addresses.pricewatchAgentId
-                  ? `#${addresses.pricewatchAgentId}`
-                  : "—"
-              }
-              mono
-            />
-          </div>
-          {pricewatchCalls.length > 0 ? (
-            <ul className="mt-5 space-y-1 text-xs">
-              {pricewatchCalls.slice(0, 5).map((c) => (
-                <li
-                  key={c.paymentTx}
-                  className="flex items-baseline gap-3 text-(--color-muted)"
-                >
-                  <span className="text-(--color-fg)">{c.symbol ?? "?"}</span>
-                  <a
-                    href={`${BASE_SEPOLIA_BASESCAN}/tx/${c.paymentTx}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="link ml-auto"
-                  >
-                    {c.paymentTx.slice(0, 10)}… →
-                  </a>
-                </li>
-              ))}
-            </ul>
-          ) : null}
         </div>
       </Section>
 

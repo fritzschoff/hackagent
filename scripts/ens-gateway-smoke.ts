@@ -52,10 +52,6 @@ async function main() {
   if (!agent1 || agent1.agentId !== 1 || agent1.tokenId !== 1) {
     throw new Error(`labelToAgent(tradewise) returned unexpected: ${JSON.stringify(agent1)}`);
   }
-  const agent2 = await labelToAgent("pricewatch.agentlab.eth");
-  if (!agent2 || agent2.agentId !== 2 || agent2.tokenId !== null) {
-    throw new Error(`labelToAgent(pricewatch) returned unexpected: ${JSON.stringify(agent2)}`);
-  }
   const agentNull = await labelToAgent("unknown.agentlab.eth");
   if (agentNull !== null) {
     throw new Error(`labelToAgent(unknown) should return null, got: ${JSON.stringify(agentNull)}`);

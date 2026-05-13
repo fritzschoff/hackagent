@@ -21,8 +21,7 @@ type Role =
   | "client1"
   | "client2"
   | "client3"
-  | "validator"
-  | "pricewatch";
+  | "validator";
 
 const ENV_KEY: Record<Role, string> = {
   agent: "AGENT_PK",
@@ -30,7 +29,6 @@ const ENV_KEY: Record<Role, string> = {
   client2: "CLIENT2_PK",
   client3: "CLIENT3_PK",
   validator: "VALIDATOR_PK",
-  pricewatch: "PRICEWATCH_PK",
 };
 
 function pkOrThrow(name: string): Hex {
@@ -125,18 +123,9 @@ async function main() {
   const usdcAmount = parseUnits(parseArg("usdc") ?? "5", 6);
 
   const recipientsByChain: Record<ChainKey, Role[]> = {
-    sepolia: [
-      "agent",
-      "client1",
-      "client2",
-      "client3",
-      "validator",
-      "pricewatch",
-    ],
-    // Agent receives Base Sepolia USDC for two reasons: (1) clients pay it
-    // x402 (so it just accumulates), (2) it pays pricewatch x402 in the
-    // two-hop economy, which requires a starting USDC balance before the
-    // first inbound payment lands.
+    sepolia: ["agent", "client1", "client2", "client3", "validator"],
+    // Agent receives Base Sepolia USDC because clients pay it via x402
+    // and it accumulates earnings there.
     "base-sepolia": ["client1", "client2", "client3", "agent"],
   };
 
