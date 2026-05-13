@@ -12,7 +12,7 @@ async function main(): Promise<void> {
   }
   const spec = buildTreasuryFundingPoll({
     appUrl: "https://hackagent-nine.vercel.app",
-    exchange: "0x46D5Ed393167D8a3CA43376A496AfAE38EB691f0",
+    exchange: "0xd951bBdA9666c9917a9eB0594d82fBab1805fd08",
     webhookSecret: secret,
   });
 

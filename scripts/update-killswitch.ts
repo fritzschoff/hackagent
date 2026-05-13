@@ -11,7 +11,7 @@ async function main(): Promise<void> {
   }
   const spec = buildTreasuryKillSwitch({
     appUrl: "https://hackagent-nine.vercel.app",
-    tradingTreasury: "0x3d4243930F3aE7648D34f5775AfAc2699C7Fc5e2",
+    tradingTreasury: "0xDF24367b83B3C4d484ea88537197a28C2A0b6A07",
   });
 
   const init = await fetch("https://app.keeperhub.com/mcp", {

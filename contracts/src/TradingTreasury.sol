@@ -61,6 +61,9 @@ contract TradingTreasury is ReentrancyGuard {
         uint256 collateral
     );
     event PositionClosed(bytes32 indexed positionId, int256 pnl);
+    event PositionCloseFailed(bytes32 indexed positionId);
+    event ExchangeWithdrawn(uint256 amount);
+    event ExchangeWithdrawFailed();
     event RevenueDistributed(uint256 amount);
     event EmergencyExited(address indexed by, uint256 returned, string reason);
     event AgentRotated(address indexed oldAgent, address indexed newAgent);
@@ -198,25 +201,38 @@ contract TradingTreasury is ReentrancyGuard {
     }
 
     /// Anyone can call this when the heartbeat is stale; owner can call it
-    /// any time. Closes the open position (if any), pulls all exchange
+    /// any time. Best-effort closes the open position, pulls exchange
     /// collateral back into the treasury, and forwards every free USDC to
-    /// the splitter so shareholders can claim their pro-rata share. After
-    /// emergency exit, the treasury is killed — no further trading.
+    /// the splitter. After emergency exit, the treasury is killed — no
+    /// further trading.
+    ///
+    /// **Solvency:** the two exchange calls are wrapped in try/catch so a
+    /// broken / under-funded / paused venue cannot wedge the kill. If the
+    /// exchange refuses for any reason, the contract still gets killed and
+    /// any on-treasury USDC drains to the splitter. Position state on the
+    /// venue may be left open for manual reconciliation — that's a known
+    /// trade-off; the dead-man's switch's *promise* is that the contract
+    /// always reaches `killed=true` and any USDC it directly holds reaches
+    /// shareholders.
     function emergencyExit(string calldata reason) external nonReentrant {
         bool isOwner = msg.sender == owner;
         require(isOwner || heartbeatStale(), "not authorized");
 
         if (positionId != bytes32(0)) {
-            int256 pnl = exchange.closePosition(positionId);
-            emit PositionClosed(positionId, pnl);
+            try this._closePositionExt(positionId) returns (int256 pnl) {
+                emit PositionClosed(positionId, pnl);
+            } catch {
+                emit PositionCloseFailed(positionId);
+            }
             positionId = bytes32(0);
             positionSize = 0;
             positionCollateral = 0;
         }
 
-        uint256 onExchange = exchange.collateralOf(address(this));
-        if (onExchange > 0) {
-            exchange.withdraw(onExchange);
+        try this._withdrawExchangeExt() returns (uint256 pulled) {
+            if (pulled > 0) emit ExchangeWithdrawn(pulled);
+        } catch {
+            emit ExchangeWithdrawFailed();
         }
 
         killed = true;
@@ -228,6 +244,22 @@ contract TradingTreasury is ReentrancyGuard {
             emit RevenueDistributed(bal);
         }
         emit EmergencyExited(msg.sender, bal, reason);
+    }
+
+    /// External trampolines used by `emergencyExit` via try/catch.
+    /// `onlySelf` makes them effectively private — only `this.call(...)`
+    /// from inside the contract works, so external callers can't drain
+    /// collateral through them.
+
+    function _closePositionExt(bytes32 pid) external returns (int256) {
+        require(msg.sender == address(this), "only self");
+        return exchange.closePosition(pid);
+    }
+
+    function _withdrawExchangeExt() external returns (uint256 pulled) {
+        require(msg.sender == address(this), "only self");
+        pulled = exchange.collateralOf(address(this));
+        if (pulled > 0) exchange.withdraw(pulled);
     }
 
     // ─── admin ──────────────────────────────────────────────────────────

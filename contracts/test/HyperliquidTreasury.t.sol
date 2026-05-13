@@ -324,6 +324,47 @@ contract HyperliquidTreasuryTest is Test {
         assertEq(usdc.balanceOf(splitter), 1_000_000_000);
     }
 
+    /// Even if HyperliquidActions.send (i.e. the CoreWriter call) reverts
+    /// — HL paused, no liquidity, gas issue — the kill must still complete.
+    function test_emergencyExit_survivesCoreWriterRevert() public {
+        // Open a position so the close path is exercised.
+        vm.prank(agent);
+        treasury.openPosition(
+            false,
+            uint64(228_000_000),
+            uint64(10_000),
+            HyperliquidActions.TIF_IOC
+        );
+        // HL position non-zero so the read passes and we attempt the close.
+        L1Read.Position memory pos = L1Read.Position({
+            szi: -int64(10_000),
+            entryNtl: 22_800_000,
+            isolatedRawUsd: 0,
+            leverage: 5,
+            isIsolated: false
+        });
+        vm.mockCall(
+            L1Read.POSITION2,
+            abi.encode(address(treasury), ETH_PERP),
+            abi.encode(pos)
+        );
+        // Now break CoreWriter — the close action will revert.
+        vm.mockCallRevert(
+            HyperliquidActions.CORE_WRITER,
+            bytes(""),
+            "CoreWriter paused"
+        );
+
+        vm.warp(block.timestamp + 6 hours + 1);
+        vm.prank(alice);
+        treasury.emergencyExit(uint64(230_000_000), "venue down");
+
+        // Kill + drain succeeded despite the order-submit revert.
+        assertTrue(treasury.killed());
+        assertEq(treasury.positionId(), bytes32(0));
+        assertEq(usdc.balanceOf(splitter), 1_000_000_000);
+    }
+
     function test_killed_blocksNewPositions() public {
         vm.prank(owner);
         treasury.kill();

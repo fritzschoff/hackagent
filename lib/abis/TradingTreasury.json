@@ -40,6 +40,38 @@
   },
   {
     "type": "function",
+    "name": "_closePositionExt",
+    "inputs": [
+      {
+        "name": "pid",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "int256",
+        "internalType": "int256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "_withdrawExchangeExt",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "pulled",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "agent",
     "inputs": [],
     "outputs": [
@@ -401,6 +433,25 @@
   },
   {
     "type": "event",
+    "name": "ExchangeWithdrawFailed",
+    "inputs": [],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ExchangeWithdrawn",
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "Funded",
     "inputs": [
       {
@@ -448,6 +499,19 @@
     "type": "event",
     "name": "Killed",
     "inputs": [],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PositionCloseFailed",
+    "inputs": [
+      {
+        "name": "positionId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      }
+    ],
     "anonymous": false
   },
   {

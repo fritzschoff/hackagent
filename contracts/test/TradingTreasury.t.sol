@@ -179,6 +179,62 @@ contract TradingTreasuryTest is Test {
         assertEq(exchange.collateralOf(address(treasury)), 0);
     }
 
+    /// Even if exchange.closePosition reverts (broken venue), emergencyExit
+    /// must still set killed=true + drain on-treasury USDC to the splitter.
+    /// The position state on the venue is left for manual reconciliation —
+    /// that's the documented trade-off.
+    function test_emergencyExit_survivesExchangeCloseRevert() public {
+        // open a position so the close path is exercised
+        vm.startPrank(agent);
+        treasury.depositToExchange(500_000_000);
+        treasury.openPosition(-1e18, 500_000_000);
+        vm.stopPrank();
+        vm.warp(block.timestamp + 6 hours + 1);
+
+        // Make exchange.closePosition revert. Use the open position id.
+        bytes32 pid = treasury.positionId();
+        vm.mockCallRevert(
+            address(exchange),
+            abi.encodeWithSignature("closePosition(bytes32)", pid),
+            "venue down"
+        );
+
+        vm.prank(alice);
+        treasury.emergencyExit("agent dead, venue down");
+
+        assertTrue(treasury.killed(), "killed");
+        assertEq(treasury.positionId(), bytes32(0), "synthetic state cleared");
+        // Treasury USDC drained to splitter. The 0.5 USDC collateral is
+        // still on the exchange (we couldn't close), but on-treasury USDC
+        // (the 0.5 reserve) flowed.
+        assertEq(usdc.balanceOf(address(treasury)), 0);
+        assertEq(usdc.balanceOf(address(splitter)), 500_000_000);
+    }
+
+    function test_emergencyExit_survivesExchangeWithdrawRevert() public {
+        vm.startPrank(agent);
+        treasury.depositToExchange(500_000_000);
+        treasury.openPosition(-1e18, 500_000_000);
+        vm.stopPrank();
+        vm.warp(block.timestamp + 6 hours + 1);
+
+        // closePosition succeeds, but withdraw reverts.
+        vm.mockCallRevert(
+            address(exchange),
+            abi.encodeWithSignature("withdraw(uint256)", uint256(500_000_000)),
+            "withdraw revert"
+        );
+
+        vm.prank(alice);
+        treasury.emergencyExit("agent dead, withdraw broken");
+
+        assertTrue(treasury.killed());
+        assertEq(treasury.positionId(), bytes32(0));
+        // Same: on-treasury USDC drains; exchange collateral stays stuck.
+        assertEq(usdc.balanceOf(address(treasury)), 0);
+        assertEq(usdc.balanceOf(address(splitter)), 500_000_000);
+    }
+
     function test_killed_blocksNewPositions() public {
         vm.prank(owner);
         treasury.kill();

@@ -66,6 +66,7 @@ contract HyperliquidTreasury is ReentrancyGuard {
         uint8 tif
     );
     event PositionClosed(bytes32 indexed positionId, uint64 limitPx);
+    event CloseOrderSubmitFailed(bytes32 indexed positionId);
     event RevenueDistributed(uint256 amount);
     event Heartbeat(uint64 timestamp);
     event EmergencyExited(address indexed by, uint256 returned, string reason);
@@ -272,9 +273,11 @@ contract HyperliquidTreasury is ReentrancyGuard {
         require(isOwner || heartbeatStale(), "not authorized");
 
         if (positionId != bytes32(0) && closeLimitPx > 0) {
-            // Read current HL position; if there's actually an open
-            // position on HL, try to reduce it. Wrapped so a precompile
-            // revert doesn't block the killing.
+            // Both the precompile read AND the order submit are wrapped
+            // so a paused HL / out-of-liquidity venue / unstable precompile
+            // cannot wedge the kill. If the close order can't go in, the
+            // contract still kills + drains; the HL position remains open
+            // for manual reconciliation post-mortem.
             (L1Read.Position memory pos, bool readOk) = _tryReadPosition();
             if (readOk && pos.szi != 0) {
                 bool isBuy = pos.szi < 0;
@@ -290,7 +293,11 @@ contract HyperliquidTreasury is ReentrancyGuard {
                     HyperliquidActions.TIF_IOC,
                     0
                 );
-                HyperliquidActions.send(closeAction);
+                try this._sendActionExt(closeAction) {
+                    // close submitted
+                } catch {
+                    emit CloseOrderSubmitFailed(positionId);
+                }
             }
             positionId = bytes32(0);
             positionOpenedAt = 0;
@@ -325,6 +332,13 @@ contract HyperliquidTreasury is ReentrancyGuard {
     /// External wrapper purely to make L1Read.position try/catch-able.
     function _readPositionExt() external view returns (L1Read.Position memory) {
         return L1Read.position(address(this), asset);
+    }
+
+    /// External wrapper purely to make HyperliquidActions.send try/catch-able.
+    /// `onlySelf` so external callers can't broadcast arbitrary actions.
+    function _sendActionExt(bytes calldata action) external {
+        require(msg.sender == address(this), "only self");
+        HyperliquidActions.send(action);
     }
 
     // ─── admin ───────────────────────────────────────────────────────────
