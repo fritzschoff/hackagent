@@ -7,7 +7,6 @@ import {
   AGENT_ENS,
   SEPOLIA_PUBLIC_RESOLVER,
 } from "@/lib/ens-constants";
-import { buildManifestRoot, TRADEWISE_MANIFEST } from "@/lib/compliance";
 import { namehash } from "viem";
 import SiteNav from "@/components/site-nav";
 
@@ -67,9 +66,7 @@ const NODE_TONE: Record<NodeKind, string> = {
 export default async function KeeperHubPage() {
   const addresses = await getSepoliaAddresses();
   const reputationRegistry = addresses.reputationRegistry;
-  const complianceManifest = addresses.complianceManifestAddress ?? "(deploy ComplianceManifest first)";
   const ensNode = namehash(AGENT_ENS);
-  const expectedRoot = buildManifestRoot(TRADEWISE_MANIFEST);
   const webhookBase =
     process.env.NEXT_PUBLIC_APP_URL ?? "https://hackagent-nine.vercel.app";
   const webhookUrl = `${webhookBase}/api/webhooks/keeperhub`;
@@ -218,67 +215,11 @@ export default async function KeeperHubPage() {
         },
       ],
     },
-    {
-      kind: "compliance-attest",
-      title: "compliance attest",
-      schedule: "every 6h",
-      envVar: "KEEPERHUB_WORKFLOW_ID_COMPLIANCE_ATTEST",
-      description:
-        "re-reads the on-chain manifest root, compares to the expected root passed in by the caller, fires an alarm if they drift. ties issue #6 (compliance) to issue #7 (keeper).",
-      recipe: [
-        {
-          kind: "trigger",
-          title: "cron schedule",
-          props: [
-            { k: "cron", v: "0 */6 * * *", mono: true },
-            { k: "input.registry", v: complianceManifest, mono: true },
-            { k: "input.agentId", v: String(addresses.agentId), mono: true },
-            { k: "input.expectedRoot", v: expectedRoot, mono: true },
-          ],
-          note: "expectedRoot = keccak256(canonicalJson(TRADEWISE_MANIFEST)) computed off chain. anyone can re-derive it.",
-        },
-        {
-          kind: "web3-read",
-          title: "ComplianceManifest.getManifest",
-          props: [
-            { k: "chain", v: "sepolia", mono: false },
-            { k: "address", v: "{{$trigger.input.registry}}", mono: true },
-            {
-              k: "function",
-              v: "getManifest(uint256) view returns (address,bytes32,string,uint256,uint64,uint8,address,uint256,string)",
-              mono: true,
-            },
-            { k: "args", v: "[{{$trigger.input.agentId}}]", mono: true },
-            { k: "outputAs", v: "$step2 (manifestRoot at index 1)", mono: true },
-          ],
-        },
-        {
-          kind: "conditional",
-          title: "$step2[1] === $trigger.input.expectedRoot",
-          props: [
-            { k: "if true", v: 'webhook summary = "verified"', mono: false },
-            {
-              k: "if false",
-              v: 'webhook summary = "DRIFT detected: " + $step2[1] + " vs " + $trigger.input.expectedRoot',
-              mono: false,
-            },
-          ],
-          note: "drift means either the manifest doc was updated without re-committing, or someone overwrote the on-chain root. both demand human attention.",
-        },
-        {
-          kind: "webhook",
-          title: "callback",
-          props: [
-            { k: "url", v: webhookUrl, mono: true },
-            {
-              k: "body",
-              v: '{"kind":"compliance-attest","workflowRunId":"{{$run.id}}","txHash":null,"summary":"{{$step3.summary}}"}',
-              mono: true,
-            },
-          ],
-        },
-      ],
-    },
+    // compliance-attest workflow removed in the honest-cuts pass — see
+    // TRADING_AGENT_BRIEF.md. The compliance manifest contract was
+    // front-runnable and not load-bearing for the funding-rate-arb
+    // thesis.
+    //
     // swap-mirror retired: KeeperHub's Turnkey wallet generates invalid
     // EIP-1559 transactions (priorityFee > maxFee), so it never landed
     // a single tx. See docs/keeperhub-feedback.md §3.1.
@@ -302,7 +243,6 @@ export default async function KeeperHubPage() {
     swap: null,
     heartbeat: null,
     "reputation-cache": null,
-    "compliance-attest": null,
     "kill-switch": null,
     "funding-poll": null,
     "dividend-distribute": null,
@@ -362,10 +302,6 @@ export default async function KeeperHubPage() {
           <dd>{SEPOLIA_PUBLIC_RESOLVER}</dd>
           <dt className="tag">reputation registry</dt>
           <dd>{reputationRegistry}</dd>
-          <dt className="tag">compliance registry</dt>
-          <dd>{complianceManifest}</dd>
-          <dt className="tag">expected manifest root</dt>
-          <dd className="break-all text-(--color-accent)">{expectedRoot}</dd>
           <dt className="tag">signer wallet</dt>
           <dd>
             PRICEWATCH_PK ·{" "}

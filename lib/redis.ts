@@ -104,7 +104,6 @@ export type KeeperhubRunKind =
   | "swap"
   | "heartbeat"
   | "reputation-cache"
-  | "compliance-attest"
   | "kill-switch"
   | "funding-poll"
   | "dividend-distribute";

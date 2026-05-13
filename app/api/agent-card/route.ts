@@ -50,11 +50,6 @@ export async function GET(req: Request) {
         version: "0.3.0",
       },
       {
-        name: "MCP",
-        endpoint: `${baseUrl}/api/mcp`,
-        version: "2025-06-18",
-      },
-      {
         name: "ENS",
         endpoint: AGENT_ENS,
         version: "v1",
@@ -127,31 +122,6 @@ export async function GET(req: Request) {
           pricePerShareUsdc: baseAddrs.pricePerShareUsdc ?? null,
           viewer: `${baseUrl}/ipo`,
           model: "fractional revenue-share ERC-20 backed by x402 settlements",
-        }
-      : null,
-    credit: addresses.reputationCreditAddress
-      ? {
-          contract: `eip155:11155111:${addresses.reputationCreditAddress}`,
-          viewer: `${baseUrl}/credit`,
-          model:
-            "uncollateralized USDC borrowing against ERC-8004 feedbackCount",
-        }
-      : null,
-    sla: addresses.slaBondAddress
-      ? {
-          contract: `eip155:11155111:${addresses.slaBondAddress}`,
-          marketplaceViewer: `${baseUrl}/marketplace`,
-          slashSplit: { clientRefundBps: 7000, slasherRewardBps: 3000 },
-          model:
-            "per-job slashable USDC bond — validator score < threshold triggers slash",
-        }
-      : null,
-    merger: addresses.agentMergerAddress
-      ? {
-          contract: `eip155:11155111:${addresses.agentMergerAddress}`,
-          viewer: `${baseUrl}/merger`,
-          model:
-            "agent M&A — two ERC-7857 INFTs combine, lineage + summed reputation oracle",
         }
       : null,
     upstreamAgents: pricewatchAddr
