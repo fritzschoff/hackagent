@@ -11,6 +11,7 @@ export type AddressMap = {
   inftAddress?: `0x${string}`;
   inftAgentId?: number;
   inftTokenId?: number;
+  inftVerifierAddress?: `0x${string}`;
   sepoliaUsdcAddress?: `0x${string}`;
 };
 

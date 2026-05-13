@@ -8,11 +8,7 @@ export const revalidate = 60;
 
 export async function GET(): Promise<NextResponse> {
   const addrs = await getSepoliaAddresses();
-
-  // TODO(M7): populate inftVerifierAddress in Edge Config after deploy.
-  // verifierAddress will be available once AgentINFTVerifier is deployed (M7).
-  const verifierAddress =
-    (addrs as Record<string, unknown>)["inftVerifierAddress"] ?? null;
+  const verifierAddress = addrs.inftVerifierAddress ?? null;
 
   const now = Math.floor(Date.now() / 1000);
   const thirtyDays = 30 * 24 * 60 * 60;

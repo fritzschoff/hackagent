@@ -23,6 +23,7 @@ type AddressMap = {
   inftAddress?: `0x${string}`;
   inftAgentId?: number;
   inftTokenId?: number;
+  inftVerifierAddress?: `0x${string}`;
   sepoliaUsdcAddress?: `0x${string}`;
 };
 
@@ -118,11 +119,15 @@ async function main(): Promise<void> {
     const inftDep = JSON.parse(readFileSync(inftDeployPath, "utf8")) as {
       identityRegistryV2: `0x${string}`;
       agentInft: `0x${string}`;
+      agentInftVerifier?: `0x${string}`;
       agentId: number;
     };
     value.identityRegistryV2 = inftDep.identityRegistryV2;
     value.inftAddress = inftDep.agentInft;
     value.inftAgentId = inftDep.agentId;
+    if (inftDep.agentInftVerifier) {
+      value.inftVerifierAddress = inftDep.agentInftVerifier;
+    }
   }
   const inftTokenIdRaw = parseArg("inft-tokenid") ?? process.env.INFT_TOKEN_ID;
   if (inftTokenIdRaw) {
