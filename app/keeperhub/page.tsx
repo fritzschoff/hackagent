@@ -189,6 +189,8 @@ export default async function KeeperHubPage() {
     "funding-poll": null,
     "dividend-distribute": null,
     "dividend-step-1": null,
+    "dividend-step-2": null,
+    "dividend-step-3": null,
     strategy: null,
   };
   for (const run of allRuns) {

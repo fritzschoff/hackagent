@@ -25,6 +25,18 @@ export type BaseSepoliaAddressMap = {
   mockPerpExchange?: `0x${string}`;
 };
 
+/// Base mainnet houses the production IPO stack (AgentShares + splitter
+/// + sale). The M1 TradingTreasury stays on Sepolia for the demo; the
+/// live trading happens on HL mainnet → CCTP → this splitter.
+export type BaseMainnetAddressMap = {
+  agentShares?: `0x${string}`;
+  revenueSplitter?: `0x${string}`;
+  sharesSale?: `0x${string}`;
+  pricePerShareUsdc?: number;
+  usdc?: `0x${string}`;
+  founder?: `0x${string}`;
+};
+
 const STUB: AddressMap = {
   identityRegistry: zeroAddress,
   reputationRegistry: zeroAddress,
@@ -47,6 +59,16 @@ export async function getBaseSepoliaAddresses(): Promise<BaseSepoliaAddressMap> 
   if (!process.env.EDGE_CONFIG) return {};
   try {
     const v = await get<BaseSepoliaAddressMap>("addresses_base_sepolia");
+    return v ?? {};
+  } catch {
+    return {};
+  }
+}
+
+export async function getBaseMainnetAddresses(): Promise<BaseMainnetAddressMap> {
+  if (!process.env.EDGE_CONFIG) return {};
+  try {
+    const v = await get<BaseMainnetAddressMap>("addresses_base_mainnet");
     return v ?? {};
   } catch {
     return {};
@@ -76,7 +98,9 @@ export type KeeperHubKind =
   | "kill-switch"
   | "funding-poll"
   | "dividend-distribute"
-  | "dividend-step-1";
+  | "dividend-step-1"
+  | "dividend-step-2"
+  | "dividend-step-3";
 
 const ENV_BY_KIND: Record<KeeperHubKind, string> = {
   swap: "KEEPERHUB_WORKFLOW_ID_SWAP",
@@ -89,6 +113,8 @@ const ENV_BY_KIND: Record<KeeperHubKind, string> = {
   "funding-poll": "KEEPERHUB_WORKFLOW_ID_FUNDING_POLL",
   "dividend-distribute": "KEEPERHUB_WORKFLOW_ID_DIVIDEND_DISTRIBUTE",
   "dividend-step-1": "KEEPERHUB_WORKFLOW_ID_DIVIDEND_STEP_1",
+  "dividend-step-2": "KEEPERHUB_WORKFLOW_ID_DIVIDEND_STEP_2",
+  "dividend-step-3": "KEEPERHUB_WORKFLOW_ID_DIVIDEND_STEP_3",
 };
 
 const EDGE_KEY_BY_KIND: Record<KeeperHubKind, string> = {
@@ -102,6 +128,8 @@ const EDGE_KEY_BY_KIND: Record<KeeperHubKind, string> = {
   "funding-poll": "keeperhub_workflow_funding_poll",
   "dividend-distribute": "keeperhub_workflow_dividend_distribute",
   "dividend-step-1": "keeperhub_workflow_dividend_step_1",
+  "dividend-step-2": "keeperhub_workflow_dividend_step_2",
+  "dividend-step-3": "keeperhub_workflow_dividend_step_3",
 };
 
 export async function getKeeperHubWorkflowIdByKind(

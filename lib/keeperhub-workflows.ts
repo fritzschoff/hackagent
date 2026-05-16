@@ -840,7 +840,158 @@ export function buildDividendStep1Withdraw(args: {
   return {
     name: "DividendStep1Withdraw",
     description:
-      "Schedule-triggered (weekly, Sundays 00:00 UTC). POSTs to /api/keeperhub/dividend-step-1-withdraw with bearer auth. The endpoint reads the agent's HL clearinghouseState, computes withdrawable - HL_OPERATING_RESERVE, signs a withdraw3 action via AGENT_PK, and submits it to HL's exchange endpoint. HL Bridge2 validators settle to Arbitrum in 3–4 min. First leg of the cross-chain dividend cycle; D2 (Arbitrum → Base) and D3 (Splitter.distribute) follow once the bridge choice is made.",
+      "Schedule-triggered (weekly, Sundays 00:00 UTC). POSTs to /api/keeperhub/dividend-step-1-withdraw with bearer auth. The endpoint reads the agent's HL clearinghouseState, computes withdrawable - HL_OPERATING_RESERVE, signs a withdraw3 action via AGENT_PK, and submits it to HL's exchange endpoint. HL Bridge2 validators settle to Arbitrum in 3–4 min. First leg of the cross-chain dividend cycle. D2 (Arbitrum → Base via CCTP) fires ~15 min later; D3 (mint into the splitter on Base) every 5 min polls Circle's iris attestation.",
+    nodes,
+    edges,
+  };
+}
+
+// ─── DividendStep2Burn ────────────────────────────────────────────────────────
+
+/**
+ * Weekly Schedule (Sundays 00:15 UTC) — second leg of the cross-chain
+ * dividend cycle: burn the Arbitrum-side USDC via CCTP so Circle's
+ * attestation service can mint it on Base.
+ *
+ * Calls /api/keeperhub/dividend-step-2-burn with bearer auth. The
+ * endpoint reads the agent's full Arbitrum USDC balance (so any D1
+ * settles already in the wallet are picked up), approves the CCTP
+ * TokenMessenger if needed, and submits depositForBurn with
+ * destinationDomain=6 (Base) and mintRecipient=base-mainnet splitter.
+ * Persists the MessageSent payload in Redis so D3 can drain it.
+ */
+export function buildDividendStep2Burn(args: {
+  appUrl: string;
+  webhookSecret: string;
+}): WorkflowSpec {
+  const nodes = [
+    {
+      id: "trigger-schedule",
+      type: "trigger",
+      position: { x: 0, y: 0 },
+      data: {
+        type: "trigger",
+        label: "Weekly Schedule",
+        status: "idle",
+        config: {
+          triggerType: "Schedule",
+          // 15 min after D1 — gives HL Bridge2 time to settle USDC on Arbitrum.
+          scheduleCron: "15 0 * * 0",
+          scheduleTimezone: "UTC",
+        },
+      },
+    },
+    {
+      id: "webhook-cctp-burn",
+      type: "action",
+      position: { x: 320, y: 0 },
+      data: {
+        type: "action",
+        label: "POST dividend-step-2-burn",
+        status: "idle",
+        config: {
+          actionType: "webhook/send-webhook",
+          webhookUrl: `${args.appUrl}/api/keeperhub/dividend-step-2-burn`,
+          webhookMethod: "POST",
+          webhookHeaders: JSON.stringify({
+            Authorization: `Bearer ${args.webhookSecret}`,
+            "Content-Type": "application/json",
+          }),
+          webhookPayload: JSON.stringify({
+            triggeredAt:
+              "{{@trigger-schedule:Weekly Schedule.data.triggeredAt}}",
+          }),
+        },
+      },
+    },
+  ];
+
+  const edges = [
+    {
+      id: "e1",
+      type: "animated",
+      source: "trigger-schedule",
+      target: "webhook-cctp-burn",
+    },
+  ];
+
+  return {
+    name: "DividendStep2Burn",
+    description:
+      "Schedule-triggered (weekly, Sundays 00:15 UTC — 15 min after D1). POSTs to /api/keeperhub/dividend-step-2-burn. Reads the agent's Arbitrum USDC balance, ensures CCTP TokenMessenger allowance, calls depositForBurn(amount, domain=6 Base, mintRecipient=splitter, USDC). MessageSent event hash gets stashed in Redis for D3 to pick up. Idempotent — second fire sees balance=0 and skips.",
+    nodes,
+    edges,
+  };
+}
+
+// ─── DividendStep3Mint ────────────────────────────────────────────────────────
+
+/**
+ * 5-min Schedule — third leg of the cross-chain dividend cycle.
+ * Polls Circle's iris attestation API for any pending CCTP burns from
+ * D2, and when an attestation is ready submits receiveMessage on Base
+ * mainnet's MessageTransmitter. The mintRecipient was set to the
+ * RevenueSplitter on Base, so USDC lands there directly — TRADE
+ * holders' claimable balance reflects it on next read.
+ */
+export function buildDividendStep3Mint(args: {
+  appUrl: string;
+  webhookSecret: string;
+}): WorkflowSpec {
+  const nodes = [
+    {
+      id: "trigger-schedule",
+      type: "trigger",
+      position: { x: 0, y: 0 },
+      data: {
+        type: "trigger",
+        label: "Every 5min",
+        status: "idle",
+        config: {
+          triggerType: "Schedule",
+          scheduleCron: "*/5 * * * *",
+          scheduleTimezone: "UTC",
+        },
+      },
+    },
+    {
+      id: "webhook-cctp-mint",
+      type: "action",
+      position: { x: 320, y: 0 },
+      data: {
+        type: "action",
+        label: "POST dividend-step-3-mint",
+        status: "idle",
+        config: {
+          actionType: "webhook/send-webhook",
+          webhookUrl: `${args.appUrl}/api/keeperhub/dividend-step-3-mint`,
+          webhookMethod: "POST",
+          webhookHeaders: JSON.stringify({
+            Authorization: `Bearer ${args.webhookSecret}`,
+            "Content-Type": "application/json",
+          }),
+          webhookPayload: JSON.stringify({
+            triggeredAt:
+              "{{@trigger-schedule:Every 5min.data.triggeredAt}}",
+          }),
+        },
+      },
+    },
+  ];
+
+  const edges = [
+    {
+      id: "e1",
+      type: "animated",
+      source: "trigger-schedule",
+      target: "webhook-cctp-mint",
+    },
+  ];
+
+  return {
+    name: "DividendStep3Mint",
+    description:
+      "Schedule-triggered every 5 min. POSTs to /api/keeperhub/dividend-step-3-mint. Drains Redis `cctp:pending:*`, polls Circle iris attestations, submits receiveMessage on Base MessageTransmitter for any ready burns. USDC mints into the RevenueSplitter on Base mainnet — TRADE holders see new claimable balance. Idle most of the week; only does work post-D2.",
     nodes,
     edges,
   };

@@ -1,6 +1,6 @@
 import { privateKeyToAccount } from "viem/accounts";
 import { createPublicClient, createWalletClient, defineChain, http } from "viem";
-import { baseSepolia, sepolia } from "viem/chains";
+import { arbitrum, base, baseSepolia, sepolia } from "viem/chains";
 import type { PrivateKeyAccount } from "viem/accounts";
 
 /// HyperEVM — chain 999 per HL_FACTS.md §1. RPC overridable via env to
@@ -74,6 +74,36 @@ export function baseSepoliaWalletClient(id: WalletId) {
     account: loadAccount(id),
     chain: baseSepolia,
     transport: http(process.env.BASE_SEPOLIA_RPC_URL),
+  });
+}
+
+export function baseMainnetPublicClient() {
+  return createPublicClient({
+    chain: base,
+    transport: http(process.env.BASE_MAINNET_RPC_URL),
+  });
+}
+
+export function baseMainnetWalletClient(id: WalletId) {
+  return createWalletClient({
+    account: loadAccount(id),
+    chain: base,
+    transport: http(process.env.BASE_MAINNET_RPC_URL),
+  });
+}
+
+export function arbitrumPublicClient() {
+  return createPublicClient({
+    chain: arbitrum,
+    transport: http(process.env.ARBITRUM_RPC_URL),
+  });
+}
+
+export function arbitrumWalletClient(id: WalletId) {
+  return createWalletClient({
+    account: loadAccount(id),
+    chain: arbitrum,
+    transport: http(process.env.ARBITRUM_RPC_URL),
   });
 }
 

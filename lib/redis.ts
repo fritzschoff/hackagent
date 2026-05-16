@@ -108,6 +108,8 @@ export type KeeperhubRunKind =
   | "funding-poll"
   | "dividend-distribute"
   | "dividend-step-1"
+  | "dividend-step-2"
+  | "dividend-step-3"
   | "strategy";
 
 export type KeeperhubRun = {
